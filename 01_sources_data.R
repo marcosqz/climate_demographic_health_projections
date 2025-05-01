@@ -246,9 +246,9 @@ data_warming <- lapply(study_param$selected_gcms, function(x) {
 data_warming <- do.call(rbind, data_warming)
 
 # KEEP ONLY THE SELECTED SSP/RCP SCENARIO
-data_warming <- data_warming[, 
-                             grepl(study_param$ssp_rcp_scenario, colnames(data_warming)) | # columns that include the name of the ssp/rcp scenario
-                               colnames(data_warming) == "model_run"] # keep also the column with the gcm models
+data_warming <- 
+  data_warming[, grepl(study_param$ssp_rcp_scenario, colnames(data_warming)) | # columns that include the name of the ssp/rcp scenario
+                 colnames(data_warming) == "model_run"] # keep also the column with the gcm models
 data_warming$model_run <- sub("_.*", "", data_warming$model_run) # keep only the name of the scenario (e.g. BCC-CSM2-MR_r1i1p1f1 to BCC-CSM2-MR)
 
 # DATASET FROM WIDE TO LONG
@@ -265,46 +265,10 @@ data_warming$warming_level <-
 data_warming$id <- NULL
 rownames(data_warming) <- NULL
 
-# # illustrative plot
-# # PLOT THE WARMING LEVELS FOR THE SPECIFIC SCENARIO AND 
-# par(mar = c(5, 9, 4, 2))  # (bottom, left, top, right)
-# 
-# # Set up the empty plot
-# plot(data_warming$year[1], 1 - 0.15,
-#      xlim = c(2000, 2100), ylim = c(0.5, 3.5), type = "n",
-#      main = "Global warming levels (SSP2-RCP4.5)",
-#      xlab = "Year", ylab = "", , yaxt = "n")
-# 
-# axis(2, at = 1:3, labels = unique(data_warming$model_run), las = 1)  # las = 1 makes labels horizontal
-# 
-# # Define the levels, colors, and offsets
-# levels <- c("1.5", "2", "3")
-# colors <- c(1, 2, 3)
-# offsets <- c(-0.15, 0, 0.15)
-# points <- c(15, 16, 17)
-# 
-# # Loop through each level
-# for (i in 1:length(levels)) {
-#   data <- subset(data_warming, warming_level == levels[i])
-#   
-#   # Plot points
-#   points(data$year, 1:length(data$year) + offsets[i], 
-#          pch = points[i], col = colors[i])
-#   
-#   # Add segments (horizontal lines)
-#   segments(data$year - 10, 1:length(data$year) + offsets[i],
-#            data$year + 10, 1:length(data$year) + offsets[i], col = colors[i])
-# }
-# abline(h = seq(1.5, 18.5), col = "grey", lty = 2)
-# # Add legend below the title, outside the plot
-# legend("top", legend = paste0(levels, "ºC"), col = colors, 
-#        pch = points, horiz = TRUE, 
-#        bty = "n", xpd = TRUE, inset = c(0, -0.075))
-# 
-# # Keep warming level of 2ºC
-# data_warming <- subset(data_warming, 
-#                          warming_level == selected_warming, 
-#                          select = c("model_run", "year"))
+# SUBSET SELECTED WARMING LEVEL
+data_warming <- subset(data_warming,
+                       warming_level == study_param$selected_warming,
+                       select = c("model_run", "year"))
 
 # GCM-specific warming level windows
 data_warming$year1 <- data_warming$year - 10
