@@ -24,7 +24,7 @@ study_param <- list(
 #### 1. SOURCES OF DATA ####
 
 ### DATASET 1: TEMPERATURE AND MORTALITY OBSERVATIONS FOR LONDON ####
-data_tempmort <- read.csv("../../indata/lndn_obs.csv", 
+data_tempmort <- read.csv("indata/lndn_obs.csv", 
                           colClasses = c(date = "Date"))
 
 # RE-GROUP AGE CATEGORIES (00_74 AND 75PLUS)
@@ -276,9 +276,9 @@ data_warming$year2 <- data_warming$year + 10
 
 #### SAVE DATASETS ####
 
-save(study_param, file = "../../outdata/file/mode_parameters.RData")
-save(data_tempmort, file = "../../outdata/file/data_tempmort.RData")
-save(data_popu, file = "../../outdata/file/data_popu.RData")
-save(proj_mortpopu, file = "../../outdata/file/data_projection_mortality_population_ssp2.RData")
-save(proj_temp, file = "../../outdata/file/data_projection_temperature_ssp2rcp45.RData")
-save(data_warming, file = "../../outdata/file/data_warming_level_window_ssp2rcp45.RData")
+save(study_param, file = "outdata/file/study_parameters.RData")
+save(data_tempmort, file = "outdata/file/data_tempmort.RData")
+save(data_popu, file = "outdata/file/data_popu.RData")
+save(proj_mortpopu, file = "outdata/file/data_projection_mortality_population_ssp2.RData")
+save(proj_temp, file = "outdata/file/data_projection_temperature_ssp2rcp45.RData")
+save(data_warming, file = "outdata/file/data_warming_level_window_ssp2rcp45.RData")
