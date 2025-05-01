@@ -5,16 +5,16 @@ library(lubridate) # year, month
 #### 4.3 CALIBRATION OF TEMPERATURE PROJECTIONS ####
 
 # Load selected parameters
-load("../../outdata/file/mode_parameters.RData")
+load("outdata/file/study_parameters.RData")
 
 # Load temperature observations
-load("../../outdata/file/data_tempmort.RData")
+load("outdata/file/data_tempmort.RData")
 
 # Load temperature projections
-load("../../outdata/file/data_projection_temperature_ssp2rcp45.RData")
+load("outdata/file/data_projection_temperature_ssp2rcp45.RData")
 
 # Load ISIMIP v3 method for bias correction
-source("../isimip3_from_masselot.R")
+source("isimip3_from_masselot.R")
 
 # Keep only the temperature columns on the observations
 data_temp <- data_tempmort[, c("date", "tmean")]
@@ -35,7 +35,7 @@ Run_BC_Temperature_Projections <- function(
     ){
   
   # Loop through each selected GCM model
-  proj_temp_bc <- lapply(model_param$selected_gcm, function(i_gcm) {
+  proj_temp_bc <- lapply(study_param$selected_gcm, function(i_gcm) {
     
     # Dynamically generate variable names if 'use_gcm' is specified
     if (var_obshist == "use_gcm") {var_obshist <- paste0("temp.", i_gcm)}
@@ -149,4 +149,4 @@ proj_temp_demo <- Run_BC_Temperature_Projections(
   calperiod = lapply(0:17, function(i){2010:2014+5*i}))
 
 # Save the final bias-corrected temperature projections
-save(proj_temp_bc, file = "../../outdata/file/data_projection_temperature_biascorrection_ssp2rcp45.RData")
+save(proj_temp_bc, file = "outdata/file/data_projection_temperature_biascorrection_ssp2rcp45.RData")

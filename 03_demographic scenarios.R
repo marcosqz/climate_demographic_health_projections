@@ -1,11 +1,11 @@
 #### 3.2. CALIBRATION OF MORTALITY AND POPULATION PROJECTIONS ####
 
 # Load mortality observations
-load("../../outdata/file/data_tempmort.RData")
+load("outdata/file/data_tempmort.RData")
 # Load population observations
-load("../../outdata/file/data_popu.RData")
+load("outdata/file/data_popu.RData")
 # Load mortality and population projections
-load("../../outdata/file/data_projection_mortality_population_ssp2.RData")
+load("outdata/file/data_projection_mortality_population_ssp2.RData")
 
 # Keep only the mortality columns on the observations
 data_mort <- data_tempmort[, c("year", "mort.00_74", "mort.75plus")]
@@ -56,4 +56,4 @@ proj_mortpopu_cal <- do.call(merge, proj_mortpopu_cal)
 
 # Save dataset
 save(proj_mortpopu_cal, 
-     file = "../../outdata/file/data_projection_temperature_calibrated_ssp2rcp45.RData")
+     file = "outdata/file/data_projection_temperature_calibrated_ssp2rcp45.RData")

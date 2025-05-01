@@ -6,23 +6,23 @@ library(dlnm) # onebasis
 #### LOAD DATA ####
 
 # Load model parameters
-load("../../outdata/file/mode_parameters.RData")
+load("outdata/file/study_parameters.RData")
 
 # Load output from the epi model
-load("../../outdata/file/argvar.RData")
-load("../../outdata/file/arglag.RData")
-load("../../outdata/file/epi_model_dlnm_varibles.RData")
-load("../../outdata/file/epi_model_coefsimage.RData")
-load("../../outdata/file/epi_model_mmt.RData")
+load("outdata/file/epi_model_argvar.RData")
+load("outdata/file/epi_model_arglag.RData")
+load("outdata/file/epi_model_dlnm_varibles.RData")
+load("outdata/file/epi_model_coefsimage.RData")
+load("outdata/file/epi_model_mmt.RData")
 
 # Load calibrated mortality and population projections
-load("../../outdata/file/data_projection_temperature_calibrated_ssp2rcp45.RData")
+load("outdata/file/data_projection_temperature_calibrated_ssp2rcp45.RData")
 
 # Load bias-corrected temperature projections
-load("../../outdata/file/data_projection_temperature_biascorrection_ssp2rcp45.RData")
+load("outdata/file/data_projection_temperature_biascorrection_ssp2rcp45.RData")
 
 # Load warming levels
-load("../../outdata/file/data_warming_level_window_ssp2rcp45.RData")
+load("outdata/file/data_warming_level_window_ssp2rcp45.RData")
 
 #### 6. COMPUTING CLIMATE CHANGE IMPACTS ACCOUNTING FOR ALL SCENARIOS ####
 
@@ -55,7 +55,7 @@ proj_temp_bc$gcm <- gsub("temp\\.", "", proj_temp_bc$gcm)
 rownames(proj_temp_bc) <- NULL
 
 # LOOP FOR AGE GROUPS TO COMPUTE THE AGE-SPECIFIC ATTRIBUTABLE MEASURES
-impacts_age <- lapply(model_param$age_groups, function(i_age){
+impacts_age <- lapply(study_param$age_groups, function(i_age){
 
   print(i_age)
 
@@ -134,15 +134,15 @@ impacts <- impacts[, !duplicated(as.list(impacts))]
 impacts$year <- year(impacts$date)
 
 # CREATE A COLUMN WITH THE TOTAL ATTRIBUTABLE NUMBER BY SUMMING THE AN FOR THE DIFFRENT AGE GROUPS
-impacts$an <- rowSums(impacts[, paste0("an.", model_param$age_groups)])
+impacts$an <- rowSums(impacts[, paste0("an.", study_param$age_groups)])
 
 # WE WILL KEEP ANNUAL IMPACTS
 # SELECT ONLY COLUMNS WITH THE AN IMPACT
 impacts_year <- impacts[, 
-  c("year", "gcm", "simulation", "an", paste0("an.", model_param$age_groups))]
+  c("year", "gcm", "simulation", "an", paste0("an.", study_param$age_groups))]
 
 # AGGREGATE ANs BY YEAR, GCM AND SIMULATION
-response_vars <- c("an", paste0("an.", model_param$age_groups))
+response_vars <- c("an", paste0("an.", study_param$age_groups))
 # Construct the formula string
 formula_str <- paste("cbind(", paste(response_vars, collapse = ", "), 
                      ") ~ year + gcm + simulation")
@@ -155,11 +155,8 @@ impacts_year <- aggregate(agg_formula, data = impacts_year, FUN = sum)
 
 # CALCULTE THE IMPACT FOR THE WARMING PERIOD
 
-# Subset the warming of 2ºC
-data_warming <- data_warming[data_warming$warming_level == 2,]
-
 # Loop for each gcm
-an_warming <- lapply(model_param$selected_gcms, function(i_gcm) {
+an_warming <- lapply(study_param$selected_gcms, function(i_gcm) {
   
   # Extract the start and end of the 21-year period for that specific gcm and
   # level of warming
@@ -180,59 +177,6 @@ an_warming <- lapply(model_param$selected_gcms, function(i_gcm) {
 })
 an_warming <- do.call(rbind, an_warming)
 
-# Histogram of the AN for 2ºC of warming (accounting for all gcms)
-hist(an_warming$an, main = "Yearly AN for 2ºC of warming",
-     xlab = "Attributable number of deaths")
-
 # SAVE FINAL RESULTS
-save(an_warming, file = "../../outdata/file/attributable_number_warming_2C.RData")
-save(impacts_year, file = "../../outdata/file/attributable_number_warming_years.RData")
-
-#### PLOTS FOR THE PAPER
-# TODO:IDEA, IT WOULD BE VERY VISUAL TO PLOT IN THE BAR DIFFERENT COLORS FOR
-# AN OF THE GCMS, AN FOR THE 2 AGE GROUPS
-
-# TODO: I HAVE TO DO THE DIFFERENCES WITH OTHER SCENARIOS
-
-### PLOT RESULTS (TODO: REMOVE FROM THIS SCRIPT)
-
-an_summary <- list(
-  total = sapply(1950:2099, function(i_year) {
-    quantile(impacts_year[impacts_year$year == i_year, "an"], 
-             c(0.025, 0.5, 0.975))
-  }),
-  "00_74" = sapply(1950:2099, function(i_year) {
-    quantile(impacts_year[impacts_year$year == i_year, "an.00_74"], 
-             c(0.025, 0.5, 0.975))
-  }),
-  "75plus" = sapply(1950:2099, function(i_year) {
-    quantile(impacts_year[impacts_year$year == i_year, "an.75plus"], 
-             c(0.025, 0.5, 0.975))
-  }))
-
-plot(1950:2099,
-     an_summary$total[2,], lwd = 2,
-     ylim = c(0, max(an_summary$total)), type = "l",
-     xlab = "Year",
-     ylab = "Attributable number of deaths",
-     main = "Full scenario")
-lines(1950:2099,
-      an_summary$total[1,], lty = 2, lwd = 0.5)
-lines(1950:2099,
-      an_summary$total[3,], lty = 2, lwd = 0.5)
-abline(h = 0)
-
-lines(1950:2099,
-      an_summary$`00_74`[2,], lty = 1, lwd = 2, col = "#1B9E77")
-lines(1950:2099,
-      an_summary$`00_74`[1,], lty = 2, lwd = 0.5, col = "#1B9E77")
-lines(1950:2099,
-      an_summary$`00_74`[3,], lty = 2, lwd = 0.5, col = "#1B9E77")
-lines(1950:2099,
-      an_summary$`75plus`[2,], lty = 1, lwd = 2, col = "#D95F02")
-lines(1950:2099,
-      an_summary$`75plus`[1,], lty = 2, lwd = 0.5, col = "#D95F02")
-lines(1950:2099,
-      an_summary$`75plus`[3,], lty = 2, lwd = 0.5, col = "#D95F02")
-legend("topleft", c("Total", "<74", "+75"), lty = 1, lwd = 2,
-       col = c(1, "#1B9E77", "#D95F02"))
+save(an_warming, file = "outdata/file/attributable_number_warming_2C.RData")
+save(impacts_year, file = "outdata/file/attributable_number_warming_years.RData")
