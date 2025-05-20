@@ -1,30 +1,38 @@
-#### 3.2. CALIBRATION OF MORTALITY AND POPULATION PROJECTIONS ####
+#### TODO: ADD DESCRIPTION OF THIS SCRIPT
 
-# Load mortality observations
+# Calibration of mortality and population projection (SS2) for United Kingdom
+# and Northern Ireland to respect to the London observations
+
+#### LOAD LIBRARIES ############################################################
+
+#### LOAD DATA #################################################################
+
 load("outdata/file/data_tempmort.RData")
-# Load population observations
 load("outdata/file/data_popu.RData")
-# Load mortality and population projections
-load("outdata/file/data_projection_mortality_population_ssp2.RData")
+load("outdata/file/data_projection_mortality_population_ssp2.RData") # TODO: change ssp2
 
-# Keep only the mortality columns on the observations
+#### CALIBRATION OF DEMOGRAPHIC PROJECTIONS ####################################
+
+# ARRANGE MORTALITY DATASET AND AGGREGATE BY YEAR (SAME AS PROJECTIONS)
 data_mort <- data_tempmort[, c("year", "mort.00_74", "mort.75plus")]
 rm(data_tempmort)
-
-# Aggregate mortality observations by years (same as mortality projections)
 data_mort <- aggregate(cbind(mort.00_74, mort.75plus) ~ year, 
-                       data = data_mort, FUN = sum) # TODO: 2012 is not complete, choose between 1) account for that or 2) use only complete years
+                       data = data_mort, FUN = sum)
+# Remove row for 2012 (we don't have mortality data for the whole year)
+data_mort <- subset(data_mort, year != 2012)
 
-# Calibrate projections to respect to observations for mortalities and temperatures
+# LOOP MORTALITY AND POPULATION CALIBRATION (IT IS THE SAME PROCEDURE)
 proj_mortpopu_cal <- lapply(c("mort", "popu"), function(var) {
   
+  # SELECT MORT/POPU OBSERVATIONS DATASET
   if(var == "mort") {
     data <- data_mort
   } else if (var == "popu") {
     data <- data_popu
   }
   
-  proj <- proj_mortpopu[, c("year", paste0(var, ".", c("00_74", "75plus")))] # Keep columns for morttalities or populations
+  # PROJECTIONS DATASET
+  proj <- proj_mortpopu[, c("year", paste0(var, ".", c("00_74", "75plus")))] 
   
   # MERGE OBSERVATIONS AND PROJECTIONS
   merged_data <- merge(data, proj, by = "year")
@@ -33,14 +41,15 @@ proj_mortpopu_cal <- lapply(c("mort", "popu"), function(var) {
   merged_data <- subset(merged_data, select = -year)
   merged_data <- colMeans(merged_data)
   
-  for(i_age in c("00_74", "75plus")) { # LOOP AGE GROUPS
+  # LOOP AGE GROUPS
+  for(i_age in c("00_74", "75plus")) {
     
-    # CORRECTION AS THE RATIO BETWEEN OBSERVATIONS AND OBSVATION
+    # CORRECTION AS THE RATIO BETWEEN COINCIDING OBSERVATIONS AND PROJECTIONS
     correction <- 
       merged_data[[paste0(var, ".", i_age, ".x")]] / # Observations (London)
       merged_data[[paste0(var, ".", i_age, ".y")]]   # Projections (UK and NI)
     
-    # APPLY THE CORRECTION FOR THE CORRESPONDING AGE GROUP
+    # APPLY THE CORRECTION TO ALL THE PROJECTIONS
     proj[[paste0(var, ".", i_age)]] <- 
       proj[[paste0(var, ".", i_age)]] * correction
     
@@ -48,12 +57,14 @@ proj_mortpopu_cal <- lapply(c("mort", "popu"), function(var) {
     
   }; rm(i_age)
   
-  proj # return the calibrated projections
+  return(proj)
   
 })
-# Merge calibrated projections of mortality and population
+
+# MERGE CALIBRATED PROJECTIONS OF MORTALITY AND POPULATION
 proj_mortpopu_cal <- do.call(merge, proj_mortpopu_cal) 
 
-# Save dataset
+#### SAVE OUTPUTS ##############################################################
+
 save(proj_mortpopu_cal, 
-     file = "outdata/file/data_projection_temperature_calibrated_ssp2rcp45.RData")
+     file = "outdata/file/data_projection_mortpopu_calibrated_ssp2rcp45.RData") # TODO: change ssp2rcp45
