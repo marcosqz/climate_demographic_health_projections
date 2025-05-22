@@ -1,6 +1,6 @@
 #### TODO: ADD DESCRIPTION OF THIS SCRIPT
 
-# Extra code! It is not need to run the full tutorial.
+# Extra code! It is not needed to run the full tutorial.
 # In this script we estimate age-specific temperature-mortality association for 
 # London using a single interaction model
 
