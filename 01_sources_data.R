@@ -188,13 +188,13 @@ proj_temp <- lapply(study_param$selected_gcms, function(i_gcm){
     
     # Load raster data with the temperature projections
     if(i_year < 2015) {
-      file_path <- paste0("../../tas/historical/", i_gcm, 
+      file_path <- paste0("indata/tas/historical/", i_gcm, 
                           "/tas_day_", i_gcm, 
                           "_historical_r1i1p1f1_", var_path[i_gcm],
                           "_", i_year, ".nc")
       raster_data <- raster::brick(file_path)
     } else {
-      file_path <- paste0("../../tas/ssp245/", i_gcm, 
+      file_path <- paste0("indata/tas/ssp245/", i_gcm, 
                           "/tas_day_", i_gcm, 
                           "_ssp245_r1i1p1f1_", var_path[i_gcm],
                           "_", i_year, ".nc")
