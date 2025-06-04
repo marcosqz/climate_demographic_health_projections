@@ -103,7 +103,7 @@ lapply(study_param$age_groups, function(i_age) {
   
   # Plot empty plot
   plot(x_temp, rrsim[,1], 
-       xlab = expression(paste("Temperature (", degree, "C)")),
+       xlab = c(4, 4, 0, 0),
        ylab = "Relative risk", ylim = c(1.000, ymax), 
        log = "y", type = "n")
   title(title_plot[i_age], line = 0.65, font.main = 1, cex.main = 1)
@@ -354,7 +354,8 @@ Create_data_warming <- function() {
                           varying = which(names(data_warming) != "model_run"),
                           v.names = "year", 
                           timevar = "warming_level", 
-                          times = names(data_warming)[names(data_warming) != "model_run"],
+                          times = names(data_warming)[
+                            names(data_warming) != "model_run"],
                           direction = "long")
   
   # CLEAN THE NAMES OF THE DATASET
@@ -630,30 +631,87 @@ rm(bar_centers, datasets_period, title_plot_a, col_plot_a, col_plot_b,
 shp_london <- st_read("indata/shapefile_london/London_GLA_Boundary.shp")
 shp_london <- st_transform(shp_london, 4326)
 
-# Load the raster of temperature for one gcm and any year
-file_path <- paste0("indata/tas/ssp245/", study_param$selected_gcms[1],
-                    "/tas_day_", study_param$selected_gcms[1],
-                    "_ssp245_r1i1p1f1_gn",
-                    "_", 2100, ".nc")
-raster_data <- brick(file_path)
+# Define variable to find the path of the downloaded gridded dataset
+var_path <- c("BCC-CSM2-MR" = "gn", "MIROC6" = "gn", "IPSL-CM6A-LR" = "gr")
 
-# Some NetCDF files have longitudes ranging from 0 to 360 instead of -180 to 180.
-# This adjustment ensures compatibility with the London shapefile
-if (xmin(raster_data) > 180) {
-  extent(raster_data) <- extent(xmin(raster_data) - 360,
-                                xmax(raster_data) - 360,
-                                ymin(raster_data),
-                                ymax(raster_data))
-}
+# Select target dates
+target_dates <- as.Date(c("2073-07-17", "2073-07-18", "2073-07-19"))
 
-# PLOT GRIDDED TEMPERATURES AND SHAPEFILE CITY
+# Extract raster data for each GCM and date
+raster_data <- lapply(study_param$selected_gcms, function(i_gcm) {
+  
+  # Load the raster of temperature for one gcm and any year
+  file_path <- paste0("indata/tas/ssp245/", i_gcm,
+                      "/tas_day_", i_gcm,
+                      "_ssp245_r1i1p1f1_",
+                      var_path[i_gcm],
+                      "_", 2073, ".nc")
+  raster_data <- brick(file_path)
+  
+  raster_data <- raster_data[[paste0("X", format(target_dates, "%Y.%m.%d"))]]
+  
+  # Some NetCDF files have longitudes ranging from 0 to 360 instead of -180 to 180.
+  # This adjustment ensures compatibility with the London shapefile
+  if (xmin(raster_data) > 180) {
+    extent(raster_data) <- extent(xmin(raster_data) - 360,
+                                  xmax(raster_data) - 360,
+                                  ymin(raster_data),
+                                  ymax(raster_data))
+  }
+
+  return(raster_data)
+
+})
+names(raster_data) <- study_param$selected_gcms
+
+# Plot figure
+nrow.fig <- length(study_param$selected_gcms); ncol.fig <- length(target_dates)
 pdf(file = "outdata/plot/figs1_process_gridded_temperatures.pdf",
-    width = 5, height = 4)
-plot(raster_data[[226]]-273.15, 
-     xlab = "Longitude", ylab = "Latitude",
-     main = paste0("Mean temperature 2100-08-15 \n(SSP2-RCP4.5, ",
-                   study_param$selected_gcms[1], ")"))
-plot(shp_london$geometry, add = TRUE)
+    width = 8, height = 6)
+par(mfrow = c(nrow.fig, ncol.fig),
+    mar = c(3, 3, 1, 5),   # inner margins
+    oma = c(0, 3, 3, 0),   # outer margins
+    mgp = c(1.5, 0.5, 0),
+    xpd = NA)
+
+lapply(study_param$selected_gcms, function(i_gcm) {
+  lapply(target_dates, function(i_date) {
+    
+    # Format date to the name used to index raster
+    date_raster <- paste0("X", format(i_date, "%Y.%m.%d"))
+    
+    # Plot raster
+    plot(raster_data[[i_gcm]][[date_raster]] - 273.15,
+         xlim = c(-3, 3),
+         ylim = c(50.5, 53),
+         xlab = "Longitude", ylab = "Latitude",
+         main = "", legend = TRUE)
+    
+    # Add shapefile London
+    plot(shp_london$geometry, add = TRUE)
+    
+    # Plot arrow
+    x0 <- -0.1
+    y0 <- 51.5
+    x1 <- -1.6
+    y1 <- 50.3
+    arrows(x0, y0, x1, y1 + 0.15, length = 0.08, col = "red", lwd = 1.5)
+    
+    # Write mean temperature London
+    temp_val <- round(
+      proj_temp[proj_temp$date %in% i_date, paste0("temp.", i_gcm)], 1)
+    text(x1, y1, paste0("London: ", format(temp_val, nsmall = 1), "°C"), 
+         cex = 0.8)
+    
+  })
+})
+
+# Add column and row labels at the top and left respectively
+mtext(target_dates, side = 3, line = 0.5, outer = TRUE, 
+      at = (1:ncol.fig - 0.5) / 3 - 0.015)
+mtext(study_param$selected_gcms, side = 2, line = 0.5, outer = TRUE, 
+      at = 1 - (1:nrow.fig - 0.5) / 3)
+
 dev.off()
 
-rm(shp_london, file_path, raster_data)
+rm(shp_london, var_path, target_dates, raster_data, ncol.fig, nrow.fig)
