@@ -1,7 +1,9 @@
-#### TODO: ADD DESCRIPTION OF THIS SCRIPT
+################################################################################
 
-# Estimation of age-specific temperature-mortality association for London using
-# stratified models
+# This script prepares the data to estimate the association between temperature 
+# and mortality for two age groups (<75 and ≥75 years) in London during 
+# 1990–2012 using stratified quasi-Poisson regression models combined with 
+# distrusted lag non-linear models (DLMNs). 
 
 #### LOAD LIBRARIES ############################################################
 
@@ -11,7 +13,8 @@ library(MASS) # mvrnorm
 
 #### LOAD DATA #################################################################
 
-load("outdata/file/data_tempmort.RData")
+load("indata/processed/data_obs_tempmort.RData")
+load("indata/processed/study_parameters.RData")
 
 #### SET VARIABLES DEFINING THE DLNM MODEL #####################################
 
@@ -37,9 +40,9 @@ cb <- crossbasis(data_tempmort$tmean, lag = dlnm_var$max_lag, argvar, arglag)
 
 # DEFINE VARIABLE NAMES FOR AGE GROUPS
 age_parameters <- data.frame(
-  response = c("mort.00_74", "mort.75plus"),
-  groups = c("00_74", "75plus"))
-n_groups <- 2
+  response = paste0("mort.", study_param$age_groups),
+  groups = study_param$age_groups)
+n_groups <- length(study_param$age_groups)
 
 # INITIALIZE OBJECTS TO SAVE THE OUTPUTS
 coefsim_age <- list()
@@ -76,8 +79,8 @@ for(i in 1:n_groups) {
 
 #### SAVE OUTPUTS ##############################################################
 
-save(argvar, file = "outdata/file/epi_model_argvar.RData")
-save(arglag, file = "outdata/file/epi_model_arglag.RData")
-save(dlnm_var, file = "outdata/file/epi_model_dlnm_varibles.RData")
-save(coefsim_age, file = "outdata/file/epi_model_coefsimage.RData")
-save(mmt_age, file = "outdata/file/epi_model_mmt.RData")
+save(argvar, file = "outdata/file/01_epi_model/argvar.RData")
+save(arglag, file = "outdata/file/01_epi_model/arglag.RData")
+save(dlnm_var, file = "outdata/file/01_epi_model/dlnm_var.RData")
+save(coefsim_age, file = "outdata/file/01_epi_model/coefsim_age.RData")
+save(mmt_age, file = "outdata/file/01_epi_model/mmt_age.RData")
