@@ -1,6 +1,19 @@
-#### TODO: ADD DESCRIPTION OF THIS SCRIPT
+################################################################################
 
-# Bias-correction of temperature projections (SSP2-4.5) for London
+# TODO: Check in the text below if in the alternative projection series we are
+# really matching with the 2007-2011 observed or the 2007-2011 projected bias-corrected series
+
+# TODO: Investigate and ask about the source of the isimip3 function (change name of the file)
+
+# TODO: Check if in the first calibration is it necessary to split up the long
+# period into small calibration periods, do we have the same results if I put only
+# one long calibration period with all the period?
+
+# This script aligns projected and observed temperatures, calibrating GCM 
+# outputs using the ISIMIP3BASD method, with observed temperatures at the 
+# 1990–2011 historical period as reference. It also creates an alternative
+# projection series with static temperature distributions by remapping future
+# decades to match the 2007-2011 observed (TODO???) distribution using 
 
 #### LOAD LIBRARIES ############################################################
 
@@ -8,10 +21,9 @@ library(lubridate) # year, month
 
 #### LOAD DATA #################################################################
 
-load("outdata/file/study_parameters.RData")
-load("outdata/file/data_tempmort.RData")
-load("outdata/file/data_projection_temperature_ssp2rcp45.RData")
-# Load ISIMIP v3 method for bias correction
+load("indata/processed/study_parameters.RData")
+load("indata/processed/data_obs_temp_mort.RData")
+load("indata/processed/data_proj_temp_ssp245.RData")
 source("isimip3_from_masselot.R")
 
 #### BIAS-CORRECTION TEMPERATURE PROJECTIONS ###################################
@@ -141,7 +153,7 @@ proj_temp_bc <- Run_BC_Temperature_Projections(
     2090:2099))
 
 # APPLY BIAS CORRECTION TO HELD TEMPERATURE CONSTANT OVER THE PROJECTION PERIOD
-proj_temp_demo <- Run_BC_Temperature_Projections(
+proj_temp_constant <- Run_BC_Temperature_Projections(
   data_obshist = proj_temp_bc,
   data_simhist = proj_temp_bc,
   data_simfut = proj_temp_bc,
@@ -154,10 +166,9 @@ proj_temp_demo <- Run_BC_Temperature_Projections(
   calperiod = lapply(0:17, function(i){2010:2014+5*i}))
 
 #### SAVE OUTPUTS ##############################################################
-
-save(
-  proj_temp_bc, 
-  file = "outdata/file/data_projection_temperature_biascorrection_ssp2rcp45.RData")
-save(
-  proj_temp_demo, 
-  file = "outdata/file/data_projection_temperature_biascorrection_constant.RData")
+save(proj_temp_bc, file = paste0(
+  "outdata/file/03_calibrated_climate_projections/data_proj_temp_biascorrection_",
+  study_param$ssp_rcp_scenario,".RData"))
+save(proj_temp_constant, file = paste0(
+  "outdata/file/03_calibrated_climate_projections/data_proj_temp_constant_",
+  study_param$ssp_rcp_scenario,".RData"))
