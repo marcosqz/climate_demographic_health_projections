@@ -1,6 +1,6 @@
-#### TODO: ADD DESCRIPTION OF THIS SCRIPT
+################################################################################
 
-# Plot all figures in the tutorial
+# This scripts generates figures using outputs from previous scripts
 
 #### LOAD LIBRARIES ############################################################
 
@@ -10,30 +10,55 @@ library(raster) # brick, xmin
 
 #### LOAD DATA #################################################################
 
-load("outdata/file/data_tempmort.RData")
-load("outdata/file/data_popu.RData")
-load("outdata/file/epi_model_argvar.RData")
-load("outdata/file/epi_model_arglag.RData")
-load("outdata/file/epi_model_dlnm_varibles.RData")
-load("outdata/file/epi_model_coefsimage.RData")
-load("outdata/file/epi_model_mmt.RData")
+# Load study parameters
+load("indata/processed/study_parameters.RData")
 
-load("outdata/file/study_parameters.RData")
+# Load data observations
+load("indata/processed/data_obs_temp_mort.RData")
+load("indata/processed/data_obs_popu.RData")
 
-load("outdata/file/data_projection_mortality_population_ssp2.RData") # TODO: Change mortality_population to mortpopu
-load("outdata/file/data_projection_mortpopu_calibrated_ssp2rcp45.RData") # TODO: Change name, remove rcp45 
+# Load data with global warming level periods
+load("indata/processed/data_global_warming_levels_ssp245.RData")
 
-load("outdata/file/data_projection_temperature_ssp2rcp45.RData")
-load("outdata/file/data_projection_temperature_biascorrection_ssp2rcp45.RData")
-load("outdata/file/data_projection_temperature_biascorrection_constant.RData")
+# Load outputs from the epidemiological models
+load("outdata/file/01_epi_model/argvar.RData")
+load("outdata/file/01_epi_model/arglag.RData")
+load("outdata/file/01_epi_model/dlnm_var.RData")
+load("outdata/file/01_epi_model/coefsim_age.RData")
+load("outdata/file/01_epi_model/mmt_age.RData")
 
-load("outdata/file/attributable_number_warming_years_full.RData")
-load("outdata/file/attributable_number_warming_years_exclude_temp.RData")
-load("outdata/file/attributable_number_warming_years_exclude_demo.RData")
+# Load raw and calibrated demographic projections
+load("indata/processed/data_proj_mort_popu_ssp2.RData")
+load(paste0(
+  "outdata/file/02_calibrated_demographic_projections/",
+  "data_proj_mort_popu_calibrated_ssp2.RData"))
 
-load("outdata/file/attributable_number_warming_2C_full.RData")
-load("outdata/file/attributable_number_warming_2C_exclude_temp.RData")
-load("outdata/file/attributable_number_warming_2C_exclude_demo.RData")
+# Load raw, calibrated and constant temperature projections
+load("indata/processed/data_proj_temp_ssp245.RData")
+load(paste0("outdata/file/03_calibrated_climate_projections/",
+            "data_proj_temp_biascorrection_ssp245.RData"))
+load(paste0("outdata/file/03_calibrated_climate_projections/",
+            "data_proj_temp_constant_ssp245.RData"))
+
+# Load health impact results
+load(file = paste0(
+  "outdata/file/04_health_impacts/",
+  "heat_related_mortality_year_full_ssp245.RData"))
+load(file = paste0(
+  "outdata/file/04_health_impacts/", 
+  "heat_related_mortality_year_exclude_temp_ssp245.RData"))
+load(paste0(
+  "outdata/file/04_health_impacts/",
+  "heat_related_mortality_year_exclude_demo_ssp245.RData"))
+load(paste0(
+  "outdata/file/04_health_impacts/",
+  "heat_related_mortality_period_full_ssp245.RData"))
+load(paste0(
+  "outdata/file/04_health_impacts/",
+  "heat_related_mortality_period_exclude_temp_ssp245.RData"))
+load(paste0(
+  "outdata/file/04_health_impacts/",
+  "heat_related_mortality_period_exclude_demo_ssp245.RData"))
 
 #### FIGURE 1. AGE-SPECIFIC TEMPERATURE-MORTALITY ASSOCIATIONS #################
 
@@ -44,8 +69,8 @@ age_parameters <- data.frame(
   col = c("#1B9E77", "#D95F02"))
 
 title_plot <- c(
-  "00_74" = expression("Young ("< 75*" years)"),
-  "75plus" = expression("Old (">= 75*" years)"))
+  "00_74" = expression("a) Young ("< 75*" years)"),
+  "75plus" = expression("b) Old (">= 75*" years)"))
 
 # Define the temperatures for the x-axis
 pred_perc <- c(seq(0, 1, 0.1), 2:98, seq(99, 100, 0.1))
@@ -305,21 +330,21 @@ proj_temp_year <-
   aggregate(.~ lubridate::year(date), data = proj_temp, FUN = mean)
 proj_temp_bc_year <- 
   aggregate(.~ lubridate::year(date), data = proj_temp_bc, FUN = mean)
-proj_temp_demo_year <- 
-  aggregate(.~ lubridate::year(date), data = proj_temp_demo, FUN = mean)
+proj_temp_constant_year <- 
+  aggregate(.~ lubridate::year(date), data = proj_temp_constant, FUN = mean)
 
-# Arrange yearly temperature projections
+# Arrange yearly temperature projections datasets
 proj_temp_year$date <- NULL
 proj_temp_bc_year$date <- NULL
-proj_temp_demo_year$date <- NULL
+proj_temp_constant_year$date <- NULL
 colnames(proj_temp_year)[1] <- "year"
 colnames(proj_temp_bc_year)[1] <- "year"
-colnames(proj_temp_demo_year)[1] <- "year"
+colnames(proj_temp_constant_year)[1] <- "year"
 
-# Keep only above 1990 for the plot
+# Keep only years above 1990 for the plot
 proj_temp_year <- subset(proj_temp_year, year >= 1990)
 proj_temp_bc_year <- subset(proj_temp_bc_year, year >= 1990)
-proj_temp_demo_year <- subset(proj_temp_demo_year, year >= 1990)
+proj_temp_constant_year <- subset(proj_temp_constant_year, year >= 1990)
 
 # Aggregate yearly temperature observations
 data_temp_year <- data_tempmort[, c("date", "tmean")]
@@ -328,199 +353,88 @@ data_temp_year$date <- NULL
 data_temp_year <- aggregate(.~year, data = data_temp_year, FUN = mean)
 data_temp_year <- data_temp_year[data_temp_year$year != 2012,]
 
-# TODO: REMOVE this function, don't subset to specific warming at code01 to 
-# load directly here the dataset
-Create_data_warming <- function() {
-  
-  # READ THE CSV FILE WITH GLWs DIRECTLY INTO R
-  data_warming <- read.csv(
-    "https://raw.githubusercontent.com/IPCC-WG1/Atlas/main/warming-levels/CMIP6_Atlas_WarmingLevels.csv", 
-    stringsAsFactors = FALSE)
-  
-  # KEEP ONLY THE SELECTED GCMS
-  data_warming <- lapply(study_param$selected_gcms, function(x) {
-    data_warming[grepl(x, data_warming$model_run),]
-  })
-  data_warming <- do.call(rbind, data_warming)
-  
-  # KEEP ONLY THE SELECTED SSP/RCP SCENARIO
-  data_warming <- 
-    data_warming[, grepl(study_param$ssp_rcp_scenario, colnames(data_warming)) | # columns that include the name of the ssp/rcp scenario
-                   colnames(data_warming) == "model_run"] # keep also the column with the gcm models
-  data_warming$model_run <- sub("_.*", "", data_warming$model_run) # keep only the name of the scenario (e.g. BCC-CSM2-MR_r1i1p1f1 to BCC-CSM2-MR)
-  
-  # DATASET FROM WIDE TO LONG
-  data_warming <- reshape(data_warming,
-                          varying = which(names(data_warming) != "model_run"),
-                          v.names = "year", 
-                          timevar = "warming_level", 
-                          times = names(data_warming)[
-                            names(data_warming) != "model_run"],
-                          direction = "long")
-  
-  # CLEAN THE NAMES OF THE DATASET
-  data_warming$warming_level <- 
-    gsub("X|_ssp245", "", data_warming$warming_level)
-  data_warming$id <- NULL
-  rownames(data_warming) <- NULL
-  
-  # 21-YEARS GCM-SPECIFIC WARMING LEVEL WINDOW
-  data_warming$year1 <- data_warming$year - 10
-  data_warming$year2 <- data_warming$year + 10
-  
-  return(data_warming)
-  
-}
-
-data_warming <- Create_data_warming()
-
 # PLOT PARAMETERS
-col_plot_a <- c("#1F77B4", "#2CA02C", "#E73F74", "#6699CC")
-col_plot_b <- c("#118DFF", "#750985", "#C83D95")
-levels_gwl <- c("1.5", "2", "3")
-offsets_gwl <- c(-0.15, 0, 0.15)
-points_gwl <- c(15, 16, 17)
+col_plot <- c("#1F77B4", "#2CA02C", "#E73F74", "#6699CC")
 
 # PLOT FIGURE WITH CLIMATE MODELS
 pdf(file = "outdata/plot/fig3_climate_models.pdf",
-    width = 5*1.2, height = 4*1.2 + 4)
-par(mfrow = c(2, 1), mar = c(3.8, 4.1, 4.1, 0.5), las = 1)
+    width = 7, height = 12)
+par(mfrow = c(3, 1), mar = c(3.8, 6, 4.1, 0.5), las = 1)
 
-# a) TIME-SERIES TEMPERATURE PROJECTIONS FOR GCM (IPSL-CM6A-LR)
-# Raw projections
-plot(proj_temp_year$year, proj_temp_year$`temp.IPSL-CM6A-LR`, 
-     col = col_plot_a[1], type = "l",
-     ylim = range(proj_temp_year$`temp.IPSL-CM6A-LR`,
-                  proj_temp_bc_year$`temp.IPSL-CM6A-LR`),
-     xlab = "Year", ylab = expression(paste("Temperature (", degree, "C)")),
-     main = "a) GCM IPSL-CM6A-LR (London, SSP2-4.5)",
-     lwd = 2, lty = 2)
-# Bias-corrected projections
-lines(proj_temp_bc_year$year, proj_temp_bc_year$`temp.IPSL-CM6A-LR`, 
-      col = col_plot_a[2], lwd = 2)
-# Constant projections
-lines(proj_temp_demo_year$year, proj_temp_demo_year$`temp.IPSL-CM6A-LR`, 
-      col = col_plot_a[3], lwd = 2)
-# Observations
-lines(data_temp_year$year, data_temp_year$tmean,
-      col = col_plot_a[4], lwd = 2)
-
-# Add legend
-legend("topleft",
-       c("Observations",
-         "Raw projections",
-         "Bias-corrected projections",
-         "Constant projections"),
-       lwd = c(2, 2, 2, 2),
-       lty = c(1, 2, 1, 1),
-       col = col_plot_a[c(4, 1, 2, 3)],
-       cex = 0.8)
-
-# b) PERIODS OF GLOBAL WARMING LEVELS BY GCM 
-par(mar = c(5, 8, 3.5, 0.5))  # (bottom, left, top, right)
-plot(data_warming$year[1], 1 - 0.15,
-     xlim = c(2000, 2100), ylim = c(0.5, 3.5), type = "n",
-     main = "b) Global warming levels (SSP2-RCP4.5)",
-     xlab = "Year", ylab = "", , yaxt = "n")
-axis(2, at = 1:3, labels = unique(data_warming$model_run), las = 1) 
-
-# Loop through each GWL
-for (i in 1:length(levels_gwl)) {
-  data <- subset(data_warming, warming_level == levels_gwl[i])
+lapply(seq_along(study_param$selected_gcms), function(i_loop) {
   
-  # Plot points
-  points(data$year, 1:length(data$year) + offsets_gwl[i],
-         pch = points_gwl[i], col = col_plot_b[i], cex = 2)
+  i_gcm <- study_param$selected_gcms[i_loop]
   
-  # Add segments (horizontal lines)
-  segments(data$year - 10, 1:length(data$year) + offsets_gwl[i],
-           data$year + 10, 1:length(data$year) + offsets_gwl[i], 
-           col = col_plot_b[i], lwd = 2)
-}; rm(data, i)
-abline(h = seq(1.5, 18.5), col = "grey", lty = 2)
-
-# Add legend below the title, outside the plot
-legend("top", legend = paste0(levels_gwl, "ºC"), col = col_plot_b,
-       pch = points_gwl, horiz = TRUE, cex = 1.2,
-       bty = "n", xpd = TRUE, inset = c(0, -0.13))
+  # TIME-SERIES TEMPERATURE PROJECTIONS FOR GCM
+  # Raw projections
+  plot(proj_temp_year$year, proj_temp_year[[paste0("temp.", i_gcm)]], 
+       col = col_plot[1], type = "l",
+       ylim = range(proj_temp_year[[paste0("temp.", i_gcm)]],
+                    proj_temp_bc_year[[paste0("temp.", i_gcm)]],
+                    proj_temp_constant_year[[paste0("temp.", i_gcm)]],
+                    data_temp_year$tmean),
+       xlab = "Year", ylab = expression(paste("Temperature (", degree, "C)")),
+       main = paste0(letters[i_loop], ") GCM ", i_gcm," (London, SSP2-4.5)"),
+       cex.main = 2,
+       cex = 1.2,
+       cex.lab = 1.5,
+       cex.axis = 1.5,
+       lwd = 2, lty = 2)
+  # Bias-corrected projections
+  lines(proj_temp_bc_year$year, proj_temp_bc_year[[paste0("temp.", i_gcm)]], 
+        col = col_plot[2], lwd = 2)
+  # Constant projections
+  lines(proj_temp_constant_year$year, 
+        proj_temp_constant_year[[paste0("temp.", i_gcm)]], 
+        col = col_plot[3], lwd = 2)
+  # Observations
+  lines(data_temp_year$year, data_temp_year$tmean,
+        col = col_plot[4], lwd = 4)
+  
+  # Add legend
+  legend("bottomright",
+         c("Observations",
+           "Raw projections",
+           "Bias-corrected projections",
+           "Constant projections"),
+         lwd = c(4, 2, 2, 2),
+         lty = c(1, 2, 1, 1),
+         col = col_plot[c(4, 1, 2, 3)],
+         bg = "white",
+         cex = 1.2)
+  
+})
 
 dev.off()
 
-rm(proj_temp_year, proj_temp_bc_year, proj_temp_demo_year, data_temp_year,
-   Create_data_warming, offsets_gwl, levels_gwl, points_gwl,
-   col_plot_a, col_plot_b)
+rm(proj_temp_year, proj_temp_bc_year, proj_temp_constant_year, data_temp_year,
+   col_plot)
 
 #### FIGURE 4. HEAT-RELATED MORTALITY ##########################################
 
 # CALCULATE SUMMARY VALUES OF HEAT-RELATED MORTALIY FOR EACH AGE GROUP
 
-# Estimates by year
+# Define the periods to plot
 periods_an <- 1950:2099
 names(periods_an) <- 1950:2099
 
-# Get median, and CI of the AN for each group
-an_summary <- list(
-  
-  # All age
-  total = sapply(periods_an, function(i_year) {
-    quantile(impacts_year_full[impacts_year_full$year %in% i_year, "an"], 
+# Compute median and confidence interval of the attributable number (an) by
+# age group an period
+an_summary <- lapply(c("an", paste0("an.", study_param$age_groups)), function(var) {
+  sapply(periods_an, function(i_year) {
+    quantile(an_year_full[an_year_full$year %in% i_year, var], 
              c(0.025, 0.5, 0.975))
-  }),
-  
-  # Young
-  "00_74" = sapply(periods_an, function(i_year) {
-    quantile(impacts_year_full[impacts_year_full$year %in% i_year, "an.00_74"], 
-             c(0.025, 0.5, 0.975))
-  }),
-  
-  # Old
-  "75plus" = sapply(periods_an, function(i_year) {
-    quantile(impacts_year_full[impacts_year_full$year %in% i_year, "an.75plus"], 
-             c(0.025, 0.5, 0.975))
-}))
-
-# TEMPORAL AGGREGATION OF IMPACTS (BY PERIOD - END OF THE CENTURY)
-# TODO: Move this calculation to code 05_computing_impacts
-
-# Create function to aggregate yearly impact datasets to longer periods
-compute_an_warming <- function(impacts_year){
-  
-  # Loop for each gcm
-  an_warming <- lapply(study_param$selected_gcms, function(i_gcm) {
-    
-    # First and last year of the 21-period
-    years_warming <- c(2079, 2099)
-    
-    # Subset for the gcm and the period
-    subset_data <- subset(
-      impacts_year, (gcm == i_gcm) & 
-        (year %in% years_warming[1]:years_warming[2]),
-      select = c(simulation, an))
-    
-    # Sum AN for the 21-year period
-    subset_data <- aggregate(an ~ simulation, subset_data, FUN = sum)
-    subset_data$gcm <- i_gcm
-    subset_data[, c("gcm", "simulation", "an")]
-    
   })
-  an_warming <- do.call(rbind, an_warming)
-  an_warming
-}
-
-# Temporal aggregation to end-of-century (2079-2099)
-an_endcentury_full <- compute_an_warming(impacts_year_full)
-an_endcentury_exclude_temp <- compute_an_warming(impacts_year_exclude_temp)
-an_endcentury_exclude_demo <- compute_an_warming(impacts_year_exclude_demo)
-
-# CALCULATE SUMMARY VALUES OF HEAT-RELATED MORTALIY FOR 21-YEAR PERIODS
+})
+names(an_summary) <- c("total", study_param$age_groups)
 
 # Put in a list all the datasets of 21-years period
-datasets_period <- list(an_warming_exclude_demo,
-                        an_warming_exclude_temp,
-                        an_warming_full,
-                        an_endcentury_exclude_demo,
-                        an_endcentury_exclude_temp,
-                        an_endcentury_full)
+datasets_period <- list(an_period_exclude_demo$gwl,
+                        an_period_exclude_temp$gwl,
+                        an_period_full$gwl,
+                        an_period_exclude_demo$end_century,
+                        an_period_exclude_temp$end_century,
+                        an_period_full$end_century)
 
 # Extract medians and quantiles of 21-years periods
 values_period <- 
@@ -594,26 +508,40 @@ legend("topleft",
 # b) CLIMATE AND DEMOGRAPHIC CONTRIBUTIONS IN DIFFERENT PERIODS
 par(mar = c(6, 4, 4, 2))  # Bottom, Left, Top, Right
 
-# Create the barplot and capture the bar midpoints (x positions)
-bar_centers <- barplot(values_period,
-                       ylim = c(0, max(max_ci_period) + 2),
-                       las = 2,
-                       col = c(rep(col_plot_b[1], 3), rep(col_plot_b[2], 3)),
-                       ylab = "Yearly heat-related deaths",
-                       main = "")
+# Create the plot with the point-estimates
+plot(
+  x = seq_along(values_period),
+  y = values_period,
+  xlim = c(min(seq_along(values_period)) - 0.2, 
+           max(seq_along(values_period)) + 0.2),
+  ylim = c(0, max(max_ci_period) + 2),
+  xaxt = "n",
+  pch = 21,
+  cex = 2,
+  bg = c(rep(col_plot_b[1], 3), rep(col_plot_b[2], 3)),
+  xlab = "",
+  ylab = "Yearly heat-related deaths",
+  main = "")
+abline(h = 0)
+abline(v = mean(seq_along(values_period)))
+
+# Add custom x-axis labels
+axis(1, at = seq_along(values_period), labels = names(values_period), las = 2)
+
 title("b) Aggregated 21-year period impacts", 
       line = 0.65, font.main = 1, cex.main = 1)
 
 # Add vertical error bars using arrows()
-arrows(x0 = bar_centers, y0 = min_ci_period,
-       x1 = bar_centers, y1 = max_ci_period,
+arrows(x0 = seq_along(values_period), y0 = min_ci_period,
+       x1 = seq_along(values_period), y1 = max_ci_period,
        angle = 90, code = 3, length = 0.1, col = "black")
 
 # Add a legend
 legend("topleft", 
        legend = c(expression(paste("Global warming level (2", degree, "C)")), 
                   "End-of-century"), 
-       fill = col_plot_b, bty = "n", cex = 0.75)
+       pch = 21,
+       pt.bg = col_plot_b, bty = "n", cex = 0.75)
 
 # COMMON LEGENDS TO BOTH PLOTS
 mtext("Heat-related mortality projetions (London, SSP2-4.5)", 
@@ -621,18 +549,16 @@ mtext("Heat-related mortality projetions (London, SSP2-4.5)",
 
 dev.off()
 
-rm(bar_centers, datasets_period, title_plot_a, col_plot_a, col_plot_b,
+rm(datasets_period, title_plot_a, col_plot_a, col_plot_b,
    max_ci_period, min_ci_period, ncol.fig, nrow.fig, periods_an, values_period,
-   compute_an_warming, an_summary)
+   an_summary)
 
 #### FIGURE S1. PROCESS GRIDDED TEMPERATURES ###################################
 
 # Load shapefile city of London
-shp_london <- st_read("indata/shapefile_london/London_GLA_Boundary.shp")
+shp_london <- st_read(
+  "indata/raw/shapefile_london/London_GLA_Boundary.shp")
 shp_london <- st_transform(shp_london, 4326)
-
-# Define variable to find the path of the downloaded gridded dataset
-var_path <- c("BCC-CSM2-MR" = "gn", "MIROC6" = "gn", "IPSL-CM6A-LR" = "gr")
 
 # Select target dates
 target_dates <- as.Date(c("2073-07-17", "2073-07-18", "2073-07-19"))
@@ -641,11 +567,9 @@ target_dates <- as.Date(c("2073-07-17", "2073-07-18", "2073-07-19"))
 raster_data <- lapply(study_param$selected_gcms, function(i_gcm) {
   
   # Load the raster of temperature for one gcm and any year
-  file_path <- paste0("indata/tas/ssp245/", i_gcm,
-                      "/tas_day_", i_gcm,
-                      "_ssp245_r1i1p1f1_",
-                      var_path[i_gcm],
-                      "_", 2073, ".nc")
+  file_path <- paste0("indata/raw/temperature_projections/", i_gcm,
+                      "/ssp245/proj_temp_grid_", i_gcm,
+                      "_ssp245_", 2073, ".nc")
   raster_data <- brick(file_path)
   
   raster_data <- raster_data[[paste0("X", format(target_dates, "%Y.%m.%d"))]]
@@ -714,4 +638,51 @@ mtext(study_param$selected_gcms, side = 2, line = 0.5, outer = TRUE,
 
 dev.off()
 
-rm(shp_london, var_path, target_dates, raster_data, ncol.fig, nrow.fig)
+rm(shp_london, target_dates, raster_data, ncol.fig, nrow.fig)
+
+#### FIGURE S2. GLOBAL WARMING LEVEL PERIODS ####################################
+
+# PLOT PARAMETERS
+
+col_plot <- c("#118DFF", "#750985", "#C83D95")
+levels_gwl <- c("1.5", "2", "3")
+offsets_gwl <- c(-0.15, 0, 0.15)
+points_gwl <- c(15, 16, 17)
+
+# PLOT FIGURE WITH CLIMATE MODELS
+pdf(file = "outdata/plot/figs2_global_warming_level_periods.pdf",
+    width = 7, height = 5)
+par(mfrow = c(1, 1), mar = c(3.8, 6, 4.1, 0.5), las = 1)
+
+# b) PERIODS OF GLOBAL WARMING LEVELS BY GCM 
+par(mar = c(5, 8, 3.5, 0.5))  # (bottom, left, top, right)
+plot(data_gwl$year[1], 1 - 0.15,
+     xlim = c(2000, 2100), ylim = c(0.5, 3.5), type = "n",
+     main = "Global warming levels (SSP2-RCP4.5)",
+     xlab = "Year", ylab = "", , yaxt = "n")
+axis(2, at = 1:3, labels = unique(data_gwl$gcm), las = 1) 
+
+# Loop through each GWL
+for (i in 1:length(levels_gwl)) {
+  data <- subset(data_gwl, warming_level == levels_gwl[i])
+  
+  # Plot points
+  points(data$year, 1:length(data$year) + offsets_gwl[i],
+         pch = points_gwl[i], col = col_plot[i], cex = 2)
+  
+  # Add segments (horizontal lines)
+  segments(data$year - 10, 1:length(data$year) + offsets_gwl[i],
+           data$year + 10, 1:length(data$year) + offsets_gwl[i], 
+           col = col_plot[i], lwd = 2)
+}; rm(data, i)
+abline(h = seq(1.5, 18.5), col = "grey", lty = 2)
+
+# Add legend below the title, outside the plot
+legend("top", legend = paste0(levels_gwl, "ºC"), col = col_plot,
+       pch = points_gwl, horiz = TRUE, cex = 1.2,
+       bty = "n", xpd = TRUE, inset = c(0, -0.11))
+
+
+dev.off()
+
+rm(offsets_gwl, levels_gwl, points_gwl, col_plot)
