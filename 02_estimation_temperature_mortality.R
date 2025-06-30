@@ -13,7 +13,7 @@ library(MASS) # mvrnorm
 
 #### LOAD DATA #################################################################
 
-load("indata/processed/data_obs_tempmort.RData")
+load("indata/processed/data_obs_temp_mort.RData")
 load("indata/processed/study_parameters.RData")
 
 #### SET VARIABLES DEFINING THE DLNM MODEL #####################################
