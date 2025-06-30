@@ -1,23 +1,35 @@
-#### TODO: ADD DESCRIPTION OF THIS SCRIPT
+################################################################################
 
-# Calibration of mortality and population projection (SS2) for United Kingdom
-# and Northern Ireland to respect to the London observations
+# Calibration of national-level SSP2 mortality and population projection for the
+# United Kingdom and Northern Ireland to adjust to London's absolute numbers.
+# This scripts computes city-specific correction factors by comparing
+# national-level projections with observed values for London during overlapping
+# historical periods. The entire projection series is the scaled by the ratio of
+# observed to projected means in the baseline period.
 
 #### LOAD LIBRARIES ############################################################
 
 #### LOAD DATA #################################################################
 
-load("outdata/file/data_tempmort.RData")
-load("outdata/file/data_popu.RData")
-load("outdata/file/data_projection_mortality_population_ssp2.RData") # TODO: change ssp2
+load("indata/processed/data_obs_temp_mort.RData")
+load("indata/processed/data_obs_popu.RData")
+load("indata/processed/data_proj_mort_popu_ssp2.RData")
+load("indata/processed/study_parameters.RData")
 
 #### CALIBRATION OF DEMOGRAPHIC PROJECTIONS ####################################
 
 # ARRANGE MORTALITY DATASET AND AGGREGATE BY YEAR (SAME AS PROJECTIONS)
-data_mort <- data_tempmort[, c("year", "mort.00_74", "mort.75plus")]
+data_mort <- data_tempmort[, c("year", 
+                               paste0("mort.", study_param$age_groups))]
 rm(data_tempmort)
-data_mort <- aggregate(cbind(mort.00_74, mort.75plus) ~ year, 
-                       data = data_mort, FUN = sum)
+
+# Create formula for aggregation: cbind(mort.00_74, mort.75plus) ~ year
+formula_agg <- as.formula(paste0(
+  "cbind(", 
+  paste(paste0("mort.", study_param$age_groups), collapse = ", "),
+  ") ~ year"))
+
+data_mort <- aggregate(formula_agg, data = data_mort, FUN = sum)
 # Remove row for 2012 (we don't have mortality data for the whole year)
 data_mort <- subset(data_mort, year != 2012)
 
@@ -32,7 +44,7 @@ proj_mortpopu_cal <- lapply(c("mort", "popu"), function(var) {
   }
   
   # PROJECTIONS DATASET
-  proj <- proj_mortpopu[, c("year", paste0(var, ".", c("00_74", "75plus")))] 
+  proj <- proj_mortpopu[, c("year", paste0(var, ".",  study_param$age_groups))] 
   
   # MERGE OBSERVATIONS AND PROJECTIONS
   merged_data <- merge(data, proj, by = "year")
@@ -42,7 +54,7 @@ proj_mortpopu_cal <- lapply(c("mort", "popu"), function(var) {
   merged_data <- colMeans(merged_data)
   
   # LOOP AGE GROUPS
-  for(i_age in c("00_74", "75plus")) {
+  for(i_age in study_param$age_groups) {
     
     # CORRECTION AS THE RATIO BETWEEN COINCIDING OBSERVATIONS AND PROJECTIONS
     correction <- 
@@ -66,5 +78,6 @@ proj_mortpopu_cal <- do.call(merge, proj_mortpopu_cal)
 
 #### SAVE OUTPUTS ##############################################################
 
-save(proj_mortpopu_cal, 
-     file = "outdata/file/data_projection_mortpopu_calibrated_ssp2rcp45.RData") # TODO: change ssp2rcp45
+save(proj_mortpopu_cal, file = paste0(
+  "outdata/file/02_calibrated_demographic_projections/",
+  "data_proj_mort_popu_calibrated_ssp", study_param$ssp_scenario,".RData"))
