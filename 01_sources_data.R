@@ -420,7 +420,7 @@ data_gwl$year2 <- data_gwl$year + 10
 #### SAVE OUTPUTS ##############################################################
 
 save(study_param, file = "indata/processed/study_parameters.RData")
-save(data_tempmort, file = "indata/processed/data_obs_tempmort.RData")
+save(data_tempmort, file = "indata/processed/data_obs_temp_mort.RData")
 save(data_popu, file = "indata/processed/data_obs_popu.RData")
 save(proj_mortpopu, file = paste0(
   "indata/processed/data_proj_mort_popu_ssp", 
