@@ -63,9 +63,6 @@ for(i in 1:n_groups) {
   # FIND THE MINIMUM MORTALITY TEMPERATURE
   mmt_age[age_parameters$groups[i]] <- reduced$predvar[which.min(reduced$RRfit)]
   
-  # CENTER CURVES IN THE MMT
-  reduced <- crossreduce(cb, model, cen = mmt_age[age_parameters$groups[i]])
-  
   # EXTRACT MODEL COEFFICIENTS AND VARIANCES
   coef <- coef(reduced)
   vcov <- vcov(reduced)
