@@ -12,7 +12,7 @@ library(splines) # ns
 
 #### LOAD DATA #################################################################
 
-load("outdata/file/data_tempmort.RData")
+load("indata/processed/data_obs_temp_mort.RData")
 
 #### SET VARIABLES DEFINING THE DLNM MODEL #####################################
 
@@ -35,6 +35,10 @@ arglag <- list(fun = dlnm_var$lag_fun,
 
 # BUILD THE CROSS-BASIS
 cb <- crossbasis(data_tempmort$tmean, lag = dlnm_var$max_lag, argvar, arglag)
+
+# SAVE DIMENSIONS FOR REDUCING COEFFICIENTS
+vx <- attr(cb, "df")[1]
+vl <- attr(cb, "df")[2]
 
 # BUILD THE BASIS WITH THE SEASONALITY TERM
 seas <- ns(data_tempmort$date, 
@@ -95,24 +99,72 @@ coefsim_age[["75plus"]] <- sapply(coef, function(x) {
   })
 })
 
+coefsim_age_interaction <- sapply(coef, function(x) {
+  sapply(colnames(cb), function(coef_name) {
+      x$latent[paste0(coef_name, ":age_group75plus:1"),]
+  })
+})
+
+# REDUCE COEFFICIENTS
+# (The object with the reduced coefficient has the same structure as coefsim_age
+# from the frequentist stratified approach, allowing compatibility with the rest
+# of the code when using the B-DLNM interaciton model)
+
+# See https://doi.org/10.1186/1471-2288-13-1 for details on the reduction of the
+# coefficients, in which the formula for the dimension-reducing matrix M for the
+# cumulative overall association is M = (1^T_{L+1} * C) ⊗ I_{vx}
+
+# Uni-dimensional basis for lags
+C <- onebasis(x = 0:dlnm_var$max_lag,
+              fun = dlnm_var$lag_fun,
+              knots = logknots(dlnm_var$max_lag, nk = dlnm_var$lagnk),
+              intercept = TRUE)
+
+# Row vector of ones of length (L+1)
+ones <- matrix(1, nrow = 1, ncol = dlnm_var$max_lag + 1)
+
+# Matrix multiplication
+product <- ones %*% C
+
+# Identity matrix of size vx
+I_vx <- diag(vx)
+
+# Compute dimension-reducing matrix
+M <- I_vx %x% product
+
+# (Remove temporary datasets)
+rm(C, ones, product, I_vx, vx, vl)
+
+# Apply the reduction
+coefsim_age[["00_74"]] <- 
+  apply(coefsim_age[["00_74"]], 2, function(x) M %*% x)
+coefsim_age[["75plus"]] <- 
+  apply(coefsim_age[["75plus"]], 2, function(x) M %*% x)
+coefsim_age_interaction <- 
+  apply(coefsim_age_interaction, 2, function(x) M %*% x)
+
 #### SAVE OUTPUTS ##############################################################
 save(coefsim_age, 
-     file = "outdata/file/extra_epi_model_coefsimage_interaction.RData")
+     file = "outdata/file/01_epi_model/coefsim_age_interaction.RData")
 
 #### PLOT AGE-SPECIFIC ASSOCIATIONS ############################################
 
+# ADD THE INTERACTION TO coefsim_age OBJECT to plot it in the loop
+coefsim_age$interaction <- coefsim_age_interaction
+  
 # DEFINE VARIABLES FOR AGE GROUPS AND PLOTS
 # Age groups
 age_parameters <- data.frame(
-  response = c("mort.00_74", "mort.75plus"),
-  groups = c("00_74", "75plus"),
-  col_est = c("#1B9E77", "#D95F02"))
-n_groups <- 2
+  response = c("mort.00_74", "mort.75plus", "NA"),
+  groups = c("00_74", "75plus", "interaction"),
+  col_est = c("#1B9E77", "#D95F02", "#7570B3"))
+n_groups <- 3
 
 # Title plot
 title_plot <- list(
-  expression("Young ("< 75*" years)"),
-  expression("Old (">= 75*" years)"))
+  expression("a) Young ("< 75*" years)"),
+  expression("b) Old (">= 75*" years)"),
+  expression("c) Interaction old vs young"))
 
 # Plot
 # TODO: I HAVE TO BETTER EXPLAIN ALL THE SMALL VARIABLES THAT ARE USED FOR THE
@@ -125,11 +177,11 @@ col <- c("blue", "cyan", "orange", "red", "red4", "purple4")
 ymax <- 5
 
 # INITIALIZE PLOT
-nrow.fig <- 1; ncol.fig <- 2
-pdf("outdata/plot/fig99_extra_age_specific_associations_interaction.pdf",
-    width = ncol.fig*3*1.5, height = nrow.fig*3*1.5)
+nrow.fig <- 1; ncol.fig <- 3
+pdf("outdata/plot/figs4_extra_age_specific_associations_interaction.pdf",
+    width = ncol.fig*3*1.5*1, height = nrow.fig*3*1.5)
 layout(matrix(seq(ncol.fig * nrow.fig), nrow = nrow.fig, byrow = TRUE))
-par(mex = 0.8, mgp = c(3, 1, 0), las = 1, oma = c(0, 0, 0, 0))
+par(mex = 1, mgp = c(3, 1, 0), las = 1, oma = c(0, 0, 0, 0))
 
 for(iter in 1:n_groups) {
   
@@ -144,14 +196,14 @@ for(iter in 1:n_groups) {
   # the onebasis for only the exposure. Here we use an equivalent alternative,
   # where the crossbasis is calculated with a matrix that for each exposure has
   # a series of lags that are all the same)
-  cb <- crossbasis(
-    matrix(rep(tper, each = dlnm_var$max_lag + 1), 
-           ncol = dlnm_var$max_lag + 1, 
-           byrow = TRUE), 
-    lag = dlnm_var$max_lag, argvar, arglag)
+  bcen <- onebasis(
+    x = tper, 
+    fun = argvar$fun, 
+    knots = argvar$knots, 
+    Boundary.knots = argvar$Bound)
   
   # CALCULATE THE SAMPLE OF RELATIVE RISKS
-  rrsim <- cb %*% coefsim_age[[iter]]
+  rrsim <- bcen %*% coefsim_age[[iter]]
   
   # LOCATE POSITION OF THE TEMPERATURE WITH MINIMUM RISK
   immt <- which.min(rowMeans(rrsim))
@@ -180,14 +232,11 @@ for(iter in 1:n_groups) {
   RRplot_max <- rrmax[ind]
   
   # EMPTY PLOT
-  plot(tper, rrsim[,1], 
+  plot(tper, rrsim[,1], type = "n",
        xlab = expression(paste("Temperature (", degree, "C)")),
        ylab = "Relative risk", ylim = c(1.000, ymax), 
-       log = "y", lwd = 2,
-       col = age_parameters$col_est[iter], 
-       ci.arg = list(col = rgb(0.8, 0.8, 0.8)), 
-       type = "n")
-  title(title_plot[[iter]], line = 0.65, font.main = 1, cex.main = 1)
+       log = "y", cex.lab = 1.5, cex.axis = 1.5)
+  title(title_plot[[iter]], line = 0.65, font.main = 1, cex.main = 1.5)
   
   # PLOT SAMPLE OF RR
   for(i in 1:100){
@@ -204,23 +253,23 @@ for(iter in 1:n_groups) {
   # PLOT LINES AND RR FOR THE SPECIFIC TEMPERATURES OF INTEREST
   for(i in 1:length(col)){
     lines(c(Tplot[i], Tplot[i]), c(1, RRplot[i]), 
-          lty = 4, col = col[i], lwd = 1.5)
+          lty = 4, col = col[i], lwd = 2)
   }
   rm(i)
   
   points(Tplot, RRplot, col = "black", pch = 21, 
-         cex = 1.5, bg = col, lwd = 2)
+         cex = 1.5*1.5, bg = col, lwd = 1.5*1.5)
   
   legend("top", paste0("P", c(sprintf("%02d", perc*100), c(100, 100)), 
-                       c("", "", "", "", "", "+1ºC"), ": ",
+                       c("", "", "", "", "", "+2ºC"), ": ",
                        formatC(RRplot, digits = 2, format = "f", flag="0"), " (",
                        formatC(RRplot_min, digits = 2, format = "f", flag="0"), ",",
                        formatC(RRplot_max, digits = 2, format = "f", flag="0"), ")"), 
-         col = col, pch = 19, box.lty = 0, cex = 1.000)
+         col = col, pch = 19, box.lty = 0, cex = 1.5)
   
 }
 
-mtext("Temperature-mortality associations (London, 1990-2012)", 
+mtext("Age-specific temperature-mortality associations with an interaction model and B-DLNM (London, 1990-2012)", 
       side = 3, outer = TRUE, line = -2.2, cex = 1.3, font = 2)
 
 dev.off()
