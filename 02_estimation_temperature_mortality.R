@@ -70,7 +70,8 @@ for(i in 1:n_groups) {
   # GENERATE MONTE CARLO SAMPLES TO GENERATE SIMUALATIONS OF THE
   # RESPONSE FUNCTION
   set.seed(13041975) # Important! Same random seed for each group
-  coefsim_age[[age_parameters$groups[i]]] <- t(mvrnorm(100, coef, vcov))
+  coefsim_age[[age_parameters$groups[i]]] <- 
+    t(mvrnorm(study_param$n_sim, coef, vcov))
   
 }
 

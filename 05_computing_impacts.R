@@ -1,8 +1,5 @@
 ################################################################################
 
-# TODO: Define the number of simulations as a parameter within the study_param
-# object (study_param$n_sim) instead of using the value (100) throught the code.
-
 # This scripts estimates the health impacts of projected climate exposures by
 # combining the latest climate projections with future demographic trends. 
 # Specifically, it calculates heat-related mortality projection under the 
@@ -251,7 +248,7 @@ calculate_health_impacts <- function(constant_temp,
     # IMPACT MEASUERES
     
     # Each column as a simulation of the epidemiological model
-    colnames(afsim) <- paste0("sim", 1:100)
+    colnames(afsim) <- paste0("sim", 1:study_param$n_sim)
     impacts <- data.frame(afsim); rm(afsim)
     
     # Add columns with date and gcm (datasets need to be ordered)
@@ -260,7 +257,7 @@ calculate_health_impacts <- function(constant_temp,
     
     # Transform afsim from wide to long 
     # (this loop works slightly faster than reshape function)
-    impacts_long <- lapply(1:100, function(i) { # loop simulations
+    impacts_long <- lapply(1:study_param$n_sim, function(i) { # loop simulations
       
       impacts_subset <- impacts[,c("date", "gcm", paste0("sim", i))]
       

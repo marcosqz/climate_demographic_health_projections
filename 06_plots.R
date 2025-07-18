@@ -134,7 +134,7 @@ lapply(study_param$age_groups, function(i_age) {
   title(title_plot[i_age], line = 0.65, font.main = 1, cex.main = 1)
   
   # Plot sample of RR
-  for(i in 1:100){
+  for(i in 1:study_param$n_sim){
     lines(x_temp, rrsim[,i], col = col_age, lwd = 0.1)
   }; rm(i)
   
