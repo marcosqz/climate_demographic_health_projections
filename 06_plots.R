@@ -538,10 +538,12 @@ arrows(x0 = seq_along(values_period), y0 = min_ci_period,
 
 # Add a legend
 legend("topleft", 
-       legend = c(expression(paste("Global warming level (2", degree, "C)")), 
-                  "End-of-century"), 
+       legend = c(expression(paste(
+         "Global warming level (2", degree, "C)")), "End-of-century"), 
        pch = 21,
-       pt.bg = col_plot_b, bty = "n", cex = 0.75)
+       bg = "white",
+       pt.bg = col_plot_b, 
+       cex = 0.75)
 
 # COMMON LEGENDS TO BOTH PLOTS
 mtext("Heat-related mortality projetions (London, SSP2-4.5)", 
