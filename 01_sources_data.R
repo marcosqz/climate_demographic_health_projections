@@ -244,153 +244,154 @@ if(run_download) {
       
     })
   })
-}
-
-# (Remove temporary datasets)
-rm(run_download, lon, lat)
-
-# CONVERT GRIDDED TEMPERATURE PROJECTIONS INTO A TIME-SERIES
-
-# Load the shapefile define the boundaries of London
-# (downloaded from: https://data.london.gov.uk/dataset/statistical-gis-boundary-files-london)
-shp_london <- st_read("indata/raw/shapefile_london/London_GLA_Boundary.shp")
-# Transform the coordinate system of the shapefile to EPSG:4326 (WGS84) to match
-# the resolution of the gridded data
-shp_london <- st_transform(shp_london, 4326)
-
-# Loop selected GCMs
-proj_temp <- lapply(study_param$selected_gcms, function(i_gcm){ 
   
-  print(paste0(
-    "Process rasters: ", i_gcm, " (", which(i_gcm == study_param$selected_gcms), 
-    "/", length(study_param$selected_gcms), ")"))
+  # (Remove temporary datasets)
+  rm(run_download, lon, lat)
   
-  # Loop years
-  proj_temp <- lapply(1950:2100, function(i_year) {
+  # CONVERT GRIDDED TEMPERATURE PROJECTIONS INTO A TIME-SERIES
+  
+  # Load the shapefile define the boundaries of London
+  # (downloaded from: https://data.london.gov.uk/dataset/statistical-gis-boundary-files-london)
+  shp_london <- st_read("indata/raw/shapefile_london/London_GLA_Boundary.shp")
+  # Transform the coordinate system of the shapefile to EPSG:4326 (WGS84) to match
+  # the resolution of the gridded data
+  shp_london <- st_transform(shp_london, 4326)
+  
+  # Loop selected GCMs
+  proj_temp <- lapply(study_param$selected_gcms, function(i_gcm){ 
     
-    # Load raster data with the temperature projections
-    if(i_year < 2015) {
-      file_path <- paste0(
-        "indata/raw/temperature_projections/", i_gcm, "/", "historical", 
-        "/proj_temp_grid_", i_gcm, "_", "historical", "_", i_year, ".nc")
-      raster_data <- raster::brick(file_path)
-    } else {
-      file_path <- paste0(
-        "indata/raw/temperature_projections/", i_gcm, "/", 
-        study_param$ssp_rcp_scenario, "/proj_temp_grid_", i_gcm, "_", 
-        study_param$ssp_rcp_scenario, "_", i_year, ".nc")
-      raster_data <- raster::brick(file_path)
-    }
+    print(paste0(
+      "Process rasters: ", i_gcm, " (", which(i_gcm == study_param$selected_gcms), 
+      "/", length(study_param$selected_gcms), ")"))
     
-    # Some NetCDF files have longitudes ranging from 0 to 360 instead 
-    # of -180 to 180.
-    # This adjustment ensures compatibility with the London shapefile
-    if (xmin(raster_data) > 180) {
-      extent(raster_data) <- extent(xmin(raster_data) - 360,
-                                    xmax(raster_data) - 360,
-                                    ymin(raster_data),
-                                    ymax(raster_data))
-    }
+    # Loop years
+    proj_temp <- lapply(1950:2100, function(i_year) {
+      
+      # Load raster data with the temperature projections
+      if(i_year < 2015) {
+        file_path <- paste0(
+          "indata/raw/temperature_projections/", i_gcm, "/", "historical", 
+          "/proj_temp_grid_", i_gcm, "_", "historical", "_", i_year, ".nc")
+        raster_data <- raster::brick(file_path)
+      } else {
+        file_path <- paste0(
+          "indata/raw/temperature_projections/", i_gcm, "/", 
+          study_param$ssp_rcp_scenario, "/proj_temp_grid_", i_gcm, "_", 
+          study_param$ssp_rcp_scenario, "_", i_year, ".nc")
+        raster_data <- raster::brick(file_path)
+      }
+      
+      # Some NetCDF files have longitudes ranging from 0 to 360 instead 
+      # of -180 to 180.
+      # This adjustment ensures compatibility with the London shapefile
+      if (xmin(raster_data) > 180) {
+        extent(raster_data) <- extent(xmin(raster_data) - 360,
+                                      xmax(raster_data) - 360,
+                                      ymin(raster_data),
+                                      ymax(raster_data))
+      }
+      
+      # Extract mean temperature for London
+      y <- exact_extract(raster_data, shp_london, "mean")
+      y <- unlist(y)
+      
+      # Create the dataset with the extracted mean temperatures
+      # Handle the special case of leap years when the raster has only 365 layers:
+      # this indicates that the 29th of February is missing in the data
+      if(!(lubridate::leap_year(i_year) & # Check if it's a leap year
+           (dim(raster_data)[3] == 365))) # And raster has only 365 days
+      {
+        
+        # Create the dates
+        dates <- seq(
+          as.Date(paste0(i_year, "-01-01")),
+          as.Date(paste0(i_year, "-12-31")),
+          by = "day")
+        
+        # Create the output with an NA at the end for the 29th of Feb
+        output <- data.frame(
+          date = dates,
+          gcm = i_gcm,
+          temp = y - 273.15 # Convert Kelvin to Celsius,
+        )
+        
+      } else {
+        
+        # Handle leap years when the raster is missing Feb 29
+        
+        # Create the dates for the leap year
+        dates_leap <- seq(
+          as.Date(paste0(i_year, "-01-01")),
+          as.Date(paste0(i_year, "-12-31")),
+          by = "day")
+        
+        # Identify the leap day
+        leap_day <- as.Date(paste0(i_year, "-02-29"))
+        
+        # Move leap day to the end
+        dates_leap <- c(dates_leap[dates_leap != leap_day], leap_day)
+        
+        # Create the output with an NA at the end for the 29th of Feb
+        output <- data.frame(
+          date = dates_leap,
+          gcm = i_gcm,
+          temp = c(y - 273.15, NA) # Convert Kelvin to Celsius,
+        )
+        
+      }
+      
+      return(output)
+      
+    })
     
-    # Extract mean temperature for London
-    y <- exact_extract(raster_data, shp_london, "mean")
-    y <- unlist(y)
+    proj_temp <- do.call(rbind, proj_temp)
+    rownames(proj_temp) <- NULL
     
-    # Create the dataset with the extracted mean temperatures
-    # Handle the special case of leap years when the raster has only 365 layers:
-    # this indicates that the 29th of February is missing in the data
-    if(!(lubridate::leap_year(i_year) & # Check if it's a leap year
-         (dim(raster_data)[3] == 365))) # And raster has only 365 days
-    {
-      
-      # Create the dates
-      dates <- seq(
-        as.Date(paste0(i_year, "-01-01")),
-        as.Date(paste0(i_year, "-12-31")),
-        by = "day")
-      
-      # Create the output with an NA at the end for the 29th of Feb
-      output <- data.frame(
-        date = dates,
-        gcm = i_gcm,
-        temp = y - 273.15 # Convert Kelvin to Celsius,
-      )
-      
-    } else {
-      
-      # Handle leap years when the raster is missing Feb 29
-      
-      # Create the dates for the leap year
-      dates_leap <- seq(
-        as.Date(paste0(i_year, "-01-01")),
-        as.Date(paste0(i_year, "-12-31")),
-        by = "day")
-      
-      # Identify the leap day
-      leap_day <- as.Date(paste0(i_year, "-02-29"))
-      
-      # Move leap day to the end
-      dates_leap <- c(dates_leap[dates_leap != leap_day], leap_day)
-      
-      # Create the output with an NA at the end for the 29th of Feb
-      output <- data.frame(
-        date = dates_leap,
-        gcm = i_gcm,
-        temp = c(y - 273.15, NA) # Convert Kelvin to Celsius,
-      )
-      
-    }
-    
-    return(output)
+    return(proj_temp)
     
   })
-  
   proj_temp <- do.call(rbind, proj_temp)
-  rownames(proj_temp) <- NULL
   
-  return(proj_temp)
+  # (Remove temporary datasets)
+  rm(shp_london)
   
-})
-proj_temp <- do.call(rbind, proj_temp)
-
-# (Remove temporary datasets)
-rm(shp_london)
-
-# TRANSFORM PROJECTIONS FRON LONG TO WIDE
-proj_temp <- reshape(proj_temp, timevar = "gcm", idvar = "date", 
-                     direction = "wide")
-proj_temp <- proj_temp[order(proj_temp$date),]
-
-# HANDLE MISSING TEMPERATURE VALUES FOR LEAP DAYS IN SOME GCM
-# Some GCMs omit the 29th of February in leap years. For the missing days,
-# impute the temperature as the average of the precedin (Feb 28) and following
-# day (Mar 1)
-for(i_gcm in study_param$selected_gcms) {
+  # TRANSFORM PROJECTIONS FRON LONG TO WIDE
+  proj_temp <- reshape(proj_temp, timevar = "gcm", idvar = "date", 
+                       direction = "wide")
+  proj_temp <- proj_temp[order(proj_temp$date),]
   
-  # Identify missing temperature values
-  ind <- is.na(proj_temp[[paste0("temp.", i_gcm)]])
-  
-  if(any(ind)){
+  # HANDLE MISSING TEMPERATURE VALUES FOR LEAP DAYS IN SOME GCM
+  # Some GCMs omit the 29th of February in leap years. For the missing days,
+  # impute the temperature as the average of the precedin (Feb 28) and following
+  # day (Mar 1)
+  for(i_gcm in study_param$selected_gcms) {
     
-    # Extract dates with missing values
-    na_dates <- proj_temp[ind,]$date
+    # Identify missing temperature values
+    ind <- is.na(proj_temp[[paste0("temp.", i_gcm)]])
     
-    # Loop through each missing date and impute temperature
-    for(i_date in na_dates){
+    if(any(ind)){
       
-      i_date <- as.Date(i_date)
+      # Extract dates with missing values
+      na_dates <- proj_temp[ind,]$date
       
-      # Impute missing value as the mean of temperatures from the previos and
-      # next day
-      proj_temp[proj_temp$date == i_date, paste0("temp.", i_gcm)] <- 
-        mean(
-          proj_temp[proj_temp$date %in% c(i_date-1, i_date+1), 
-                    paste0("temp.", i_gcm)])
-    }; rm(i_date, na_dates)
+      # Loop through each missing date and impute temperature
+      for(i_date in na_dates){
+        
+        i_date <- as.Date(i_date)
+        
+        # Impute missing value as the mean of temperatures from the previos and
+        # next day
+        proj_temp[proj_temp$date == i_date, paste0("temp.", i_gcm)] <- 
+          mean(
+            proj_temp[proj_temp$date %in% c(i_date-1, i_date+1), 
+                      paste0("temp.", i_gcm)])
+      }; rm(i_date, na_dates)
+      
+    }; rm(ind)
     
-  }; rm(ind)
-  
-}; rm(i_gcm)
+  }; rm(i_gcm)
+
+}
 
 #### DATASET 5: GLOBAL WARMING LEVELS ##########################################
 
@@ -444,9 +445,11 @@ save(data_popu, file = "indata/processed/data_obs_popu.RData")
 save(proj_mortpopu, file = paste0(
   "indata/processed/data_proj_mort_popu_ssp", 
   study_param$ssp_scenario,".RData"))
-save(proj_temp, file = paste0(
-  "indata/processed/data_proj_temp_",
-  study_param$ssp_rcp_scenario, ".RData"))
+if(run_download) {
+  save(proj_temp, file = paste0(
+    "indata/processed/data_proj_temp_",
+    study_param$ssp_rcp_scenario, ".RData"))
+}
 save(data_gwl, file = paste0(
   "indata/processed/data_global_warming_levels_",
   study_param$ssp_rcp_scenario, ".RData"))
