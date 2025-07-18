@@ -177,7 +177,25 @@ lat <- c(50, 53)
 
 # LOOP OVER GCMs AND YEARS TO DOWNLOAD TEMPERATURE PROJECTIONS
 if(run_download) {
+  
+  # CREATE DIRECTORIES
+  dir.create("indata/raw/temperature_projections/", recursive = TRUE)
+  
   lapply(study_param$selected_gcms, function(i_gcm) {
+    
+    # CREATE DIRECTORIES
+    dir.create(
+      paste0("indata/raw/temperature_projections/", i_gcm, "/"), 
+      recursive = TRUE)
+    dir.create(
+      paste0("indata/raw/temperature_projections/", i_gcm, "/historical/"), 
+      recursive = TRUE)
+    lapply(study_param$ssp_rcp_scenario, function(i_scenario) {
+      dir.create(
+        paste0("indata/raw/temperature_projections/", i_gcm, "/", i_scenario), 
+        recursive = TRUE)
+    })
+    
     lapply(1950:2100, function(i_year) {
       
       # Select scenario: "historical" BEFORE 2015, "ssp245" (or defined) afterward
