@@ -154,7 +154,7 @@ title_plot <- c(
 
 # PLOT CORRELATION BETWEEN PARALLEL MONTE CARLO SIMULATIONS OF ANs
 nrow.fig <- 1; ncol.fig <- 2
-pdf(file = "outdata/plot/figs3_correlation_an_monte_carlo.pdf",
+pdf(file = "outdata/plot/figs5_correlation_an_monte_carlo.pdf",
     width = ncol.fig * 4.5, height = nrow.fig * 4.5)
 par(mfrow = c(nrow.fig, ncol.fig),
     mar = c(4, 4, 2, 2),    
