@@ -1,1 +1,5 @@
 load("/Users/mq25o705/Library/CloudStorage/OneDrive-UniversitaetBern/proj/p2025_updated_tutorial_projections/codes/git_repository/outdata/file/epi_model_mmt.RData")
+load("/Users/mq25o705/Library/CloudStorage/OneDrive-UniversitaetBern/proj/p2025_01_updated_tutorial_projections/codes/git_repository/outdata/file/epi_model_coefsimage.RData")
+load("/Users/mq25o705/Library/CloudStorage/OneDrive-UniversitaetBern/proj/p2025_01_updated_tutorial_projections/codes/git_repository/outdata/file/epi_model_mmt.RData")
+load("/Users/mq25o705/Library/CloudStorage/OneDrive-UniversitaetBern/proj/p2025_01_updated_tutorial_projections/codes/git_repository/outdata/file/data_tempmort.RData")
+load("/Users/mq25o705/Library/CloudStorage/OneDrive-UniversitaetBern/proj/p2025_01_updated_tutorial_projections/codes/git_repository/outdata/file/data_tempmort.RData")
