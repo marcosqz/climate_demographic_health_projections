@@ -548,7 +548,7 @@ names(periods_an) <- 1950:2099
 # age group an period
 
 # TODO: DECIDE AND KEEP ONLY ONE OPTION
-mode_impact_est <- "median"
+mode_impact_est <- "coef_ensmean"
 # mode_impact_est <- "coef_ensmean"
 
 an_summary <- lapply(
@@ -908,8 +908,8 @@ lapply(study_param$selected_gcms, function(i_gcm) {
     # Plot arrow
     x0 <- -0.1
     y0 <- 51.5
-    x1 <- -1.6
-    y1 <- 50.3
+    x1 <- -0.6
+    y1 <- 51.1
     arrows(x0, y0, x1, y1 + 0.15, length = 0.08, col = "red", lwd = 1.5)
     
     # Write mean temperature London

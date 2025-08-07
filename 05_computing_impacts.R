@@ -408,7 +408,7 @@ aggregation_gwl <- function(data, method) {
     # of the combination of simulations of the epi models and the gcms
     data <- apply(
       subset(data, select = c("an", paste0("an.", study_param$age_groups))),
-      2, quantile, c(0.5, 0.025, 0.975))
+      2, quantile, c(0.025, 0.975))
   }
 
   return(data)
@@ -416,19 +416,25 @@ aggregation_gwl <- function(data, method) {
 }
 
 # Full demographic and climate
-an_period$gwl$full_democlim <- 
+an_period$gwl$full_democlim <- rbind(
+  aggregation_gwl(data = an_year$epi_est.clim_gcm.full_democlim,
+                  method = "point_estimate"),
   aggregation_gwl(data = an_year$epi_sim.clim_gcm.full_democlim,
-                  method = "uncertainty")
+                  method = "uncertainty"))
 
 # Only climate
-an_period$gwl$only_clim <- 
+an_period$gwl$only_clim <- rbind(
+  aggregation_gwl(data = an_year$epi_est.clim_gcm.only_clim,
+                  method = "point_estimate"),
   aggregation_gwl(data = an_year$epi_sim.clim_gcm.only_clim,
-                  method = "uncertainty")
+                  method = "uncertainty"))
 
 # Only demographic
-an_period$gwl$only_demo <- 
+an_period$gwl$only_demo <- rbind(
+  aggregation_gwl(data = an_year$epi_est.clim_gcm.only_demo,
+                  method = "point_estimate"),
   aggregation_gwl(data = an_year$epi_sim.clim_gcm.only_demo,
-                  method = "uncertainty")
+                  method = "uncertainty"))
 
 # TEMPORAL AGGREGATION END-OF-CENTURY 2079-2099
 
@@ -459,7 +465,7 @@ aggregation_fixed_period <- function(data, method, year_period = 2079:2099) {
     
     data <- apply(
       subset(data, select = c("an", paste0("an.", study_param$age_groups))), 
-      2, quantile, c(0.5, 0.025, 0.975))
+      2, quantile, c(0.025, 0.975))
   }
   
   return(data)
@@ -467,19 +473,25 @@ aggregation_fixed_period <- function(data, method, year_period = 2079:2099) {
 }
 
 # Full demographic and climate
-an_period$end_century$full_democlim <- 
+an_period$end_century$full_democlim <- rbind(
+  aggregation_fixed_period(data = an_year$epi_est.clim_ensmean.full_democlim,
+                           method = "point_estimate"),
   aggregation_fixed_period(data = an_year$epi_sim.clim_gcm.full_democlim,
-                           method = "uncertainty")
+                           method = "uncertainty"))
 
 # Only climate
-an_period$end_century$only_clim <- 
+an_period$end_century$only_clim <- rbind(
+  aggregation_fixed_period(data = an_year$epi_est.clim_ensmean.only_clim,
+                           method = "point_estimate"),
   aggregation_fixed_period(data = an_year$epi_sim.clim_gcm.only_clim,
-                           method = "uncertainty")
+                           method = "uncertainty"))
 
 # Only demographic
-an_period$end_century$only_demo <- 
+an_period$end_century$only_demo <- rbind(
+  aggregation_fixed_period(data = an_year$epi_est.clim_ensmean.only_demo,
+                           method = "point_estimate"),
   aggregation_fixed_period(data = an_year$epi_sim.clim_gcm.only_demo,
-                           method = "uncertainty")
+                           method = "uncertainty"))
 
 #### SAVE OUTPUTS ##############################################################
 
