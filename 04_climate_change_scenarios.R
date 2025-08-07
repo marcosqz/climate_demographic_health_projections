@@ -1,6 +1,8 @@
 ################################################################################
 
 # TODO: Investigate and ask about the source of the isimip3 function (change name of the file)
+# TODO: Masselot uses decade calibration periods. Is it correct to use directly
+#       1950:2099
 
 # This script aligns projected and observed temperatures, calibrating GCM 
 # outputs using the ISIMIP3BASD method, with observed temperatures at the 
