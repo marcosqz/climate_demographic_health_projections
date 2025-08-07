@@ -27,7 +27,6 @@ dlnm_var <- list(
   lagnk = 3)
 
 # DEFINE THE EXPOSURE- AND LAG-RESPNSE FUNCTIONS
-#### TODO: Why Masselot uses "bs", it is not necessary the "ns" to the log-liner extrapolation
 argvar <- list(fun = dlnm_var$var_fun,
                knots = quantile(data_tempmort$tmean, 
                                 dlnm_var$var_prc/100, na.rm = TRUE),
@@ -45,6 +44,8 @@ age_parameters <- data.frame(
 n_groups <- length(study_param$age_groups)
 
 # INITIALIZE OBJECTS TO SAVE THE OUTPUTS
+coef_age <- list()
+vcov_age <- list()
 coefsim_age <- list()
 mmt_age <- c()
 
@@ -58,27 +59,31 @@ for(i in 1:n_groups) {
     data = data_tempmort, family = quasipoisson)
   
   # REDUCE COEFFICIENTS TO KEEP THE CUMULATIVE EXPOSURE-RESPONSE FUNCTION
-  reduced <- crossreduce(cb, model)
+  reduced <- crossreduce(cb, model, at = data_tempmort$tmean)
   
   # FIND THE MINIMUM MORTALITY TEMPERATURE
   mmt_age[age_parameters$groups[i]] <- reduced$predvar[which.min(reduced$RRfit)]
   
   # EXTRACT MODEL COEFFICIENTS AND VARIANCES
-  coef <- coef(reduced)
-  vcov <- vcov(reduced)
+  coef_age[[age_parameters$groups[i]]] <- coef(reduced)
+  vcov_age[[age_parameters$groups[i]]] <- vcov(reduced)
   
   # GENERATE MONTE CARLO SAMPLES TO GENERATE SIMUALATIONS OF THE
   # RESPONSE FUNCTION
   set.seed(13041975) # Important! Same random seed for each group
   coefsim_age[[age_parameters$groups[i]]] <- 
-    t(mvrnorm(study_param$n_sim, coef, vcov))
+    t(mvrnorm(study_param$n_sim,
+              coef_age[[age_parameters$groups[i]]],
+              vcov_age[[age_parameters$groups[i]]]))
   
-}
+}; rm(i)
 
 #### SAVE OUTPUTS ##############################################################
 
 save(argvar, file = "outdata/file/01_epi_model/argvar.RData")
 save(arglag, file = "outdata/file/01_epi_model/arglag.RData")
 save(dlnm_var, file = "outdata/file/01_epi_model/dlnm_var.RData")
+save(coef_age, file = "outdata/file/01_epi_model/coef_age.RData")
+save(vcov_age, file = "outdata/file/01_epi_model/vcov_age.RData")
 save(coefsim_age, file = "outdata/file/01_epi_model/coefsim_age.RData")
 save(mmt_age, file = "outdata/file/01_epi_model/mmt_age.RData")
