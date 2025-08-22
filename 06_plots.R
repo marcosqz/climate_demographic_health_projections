@@ -427,10 +427,6 @@ proj_temp_bc_year$date <- NULL
 colnames(proj_temp_year)[1] <- "year"
 colnames(proj_temp_bc_year)[1] <- "year"
 
-# Calculate ensemble mean of temperature projections
-proj_temp_bc_year$ens_mean <- rowMeans(
-  proj_temp_bc_year[paste0("temp.", study_param$selected_gcms)])
-
 # Keep only years above 1990 for the plot
 proj_temp_year <- subset(proj_temp_year, year >= 1990)
 proj_temp_bc_year <- subset(proj_temp_bc_year, year >= 1990)
@@ -447,13 +443,13 @@ col_plot <- c("#1B9E77", "#D95F02", "#7570B3")
 
 # PLOT FIGURE WITH CLIMATE MODELS
 pdf(file = "outdata/plot/fig3_climate_models.pdf",
-    width = 14, height = 8)
-par(mfrow = c(2, 2), 
-    mar = c(3.8, 6, 4.1, 0.5),
+    width = 15, height = 4)
+par(mfrow = c(1, 3), 
+    mar = c(4.1, 6, 4.1, 0.5),
     mgp = c(3, 1, 0),
     las = 1)
 
-lapply(seq_along(study_param$selected_gcms), function(i_loop) {
+run_loop <- lapply(seq_along(study_param$selected_gcms), function(i_loop) {
   
   i_gcm <- study_param$selected_gcms[i_loop]
   
@@ -475,7 +471,7 @@ lapply(seq_along(study_param$selected_gcms), function(i_loop) {
        cex.lab = 1.5,
        cex.axis = 1.5)
   title(paste0(letters[i_loop], ") GCM ", i_gcm), 
-        line = 0.5, cex.main = 1.3)
+        line = 0.5, cex.main = 1.5)
   # Bias-corrected projections
   lines(proj_temp_bc_year$year, proj_temp_bc_year[[paste0("temp.", i_gcm)]], 
         col = col_plot[2], lwd = 2)
@@ -494,27 +490,10 @@ lapply(seq_along(study_param$selected_gcms), function(i_loop) {
          bg = "white",
          cex = 1)
   
-})
-
-# Plot one more panel with the ensemble mean of the GCMs
-plot(x = proj_temp_bc_year$year, 
-     y = proj_temp_bc_year$ens_mean, 
-     type = "l",
-     col = col_plot[2],
-     xlab = "Year", 
-     ylab = expression(paste("Temperature (", degree, "C)")),
-     main = "",
-     lty = 1,
-     lwd = 2, 
-     cex = 1.2,
-     cex.lab = 1.5,
-     cex.axis = 1.5)
-title(paste0(letters[length(study_param$selected_gcms)+1], 
-             ") Ensemble mean GCMs"), 
-      line = 0.5, cex.main = 1.3)
+}); rm(run_loop)
 
 mtext("Temperature projections (London, SSP2-4.5)", 
-      side = 3, outer = TRUE, line = -1.75, cex = 2, font = 2)
+      side = 3, outer = TRUE, line = -2.25, cex = 1.5, font = 2)
 
 dev.off()
 
@@ -531,8 +510,6 @@ proj_mortpopu_yearly <- aggregate(
 # Aggregate projection temperature to years
 proj_temp_bc_year <- 
   aggregate(.~ lubridate::year(date), data = proj_temp_bc, FUN = mean)
-proj_temp_bc_year$ens_mean <- rowMeans(
-  proj_temp_bc_year[paste0("temp.", study_param$selected_gcms)])
 
 # Arrange yearly temperature projections datasets
 proj_temp_bc_year$date <- NULL
@@ -546,11 +523,6 @@ names(periods_an) <- 1950:2099
 
 # Compute median and confidence interval of the attributable number (an) by
 # age group an period
-
-# TODO: DECIDE AND KEEP ONLY ONE OPTION
-mode_impact_est <- "coef_ensmean"
-# mode_impact_est <- "coef_ensmean"
-
 an_summary <- lapply(
   c("an", paste0("an.", study_param$age_groups)), function(var) {
   
@@ -558,23 +530,17 @@ an_summary <- lapply(
       
   sapply(periods_an, function(i_year) {
     
-    if(mode_impact_est == "median") {
-      data_unc <- an_year$epi_sim.clim_gcm.full_democlim
-      
-      an_values <- quantile(
-        data_unc[data_unc$year %in% i_year, var], 
-        c(0.5, 0.025, 0.975))
-      
-    }
+    # Calcualte point estimate
+    estimate <- mean(
+      subset(an_year$full_democlim, year == i_year & epi == "est")[[var]])
     
-    if(mode_impact_est == "coef_ensmean") {
-      data_est <- an_year$epi_est.clim_ensmean.full_democlim
-      data_unc <- an_year$epi_sim.clim_gcm.full_democlim
-      
-      an_values <- c(
-        subset(data_est, year == i_year, select = var)[,1],
-        quantile(data_unc[data_unc$year %in% i_year, var], c(0.025, 0.975)))
-    }
+    # Calculate confidence interval
+    confidence_interval <- quantile(
+      subset(an_year$full_democlim, year == i_year & epi != "est")[[var]],
+      c(0.025, 0.975))
+    
+    an_values <- c(estimate, confidence_interval)
+    names(an_values) <- c("est", "ci1", "ci2")
     
     return(an_values)
     
@@ -583,24 +549,26 @@ an_summary <- lapply(
 names(an_summary) <- c("total", study_param$age_groups)
 
 # Extract point_estimate and ci of 21-years periods
+values_period <- list(
+  gwl = sapply(an_period$gwl, function(x) {x[,"an"]})/21,
+  end_century = sapply(an_period$end_century, function(x) {x[,"an"]})/21)
 
-values_period <- lapply(1:3, function(i) {
-  c(
-    "Demographic" = an_period$gwl$only_demo[i,"an"],
-    "Climate" = an_period$gwl$only_clim[i,"an"],
-    "Climate + \ndemographic" = an_period$gwl$full_democlim[i,"an"],
-    "Demographic" = an_period$end_century$only_demo[i,"an"],
-    "Climate" = an_period$end_century$only_clim[i,"an"],
-    "Climate + \ndemographic" = an_period$end_century$full_democlim[i,"an"]) / 21
+# Define the order of the contribution scenarios
+order_plot <- c("Demographic" = "only_demo", 
+                "Climate" = "only_clim", 
+                "Climate + \ndemographic" = "full_democlim")
+
+# Extract the values for estimation and CI ordered for the plot
+values_plot <- sapply(c("est", "ci1", "ci2"), function(value) {
+  c(values_period$gwl[value, order_plot], 
+    values_period$end_century[value, order_plot])
 })
-names(values_period) <- c("point_estimate", "ci_low", "ci_high")
-  
+
 # PLOT PARAMETERS
 col_plot <- list(
   gcm = c("#72190E", "#332288", "#225555"),
   age = c("total" = "#000000", "00_74" = "#1B9E77", "75plus" = "#D95F02"),
-  period = c("#C969A1", "#CE4441")
-)
+  period = c("#C969A1", "#CE4441"))
 
 title_plot <- list(
   a = "a) Time trends in age-specific impacts", 
@@ -617,7 +585,6 @@ legend_plot <- list(
     "End-of-century"),
   c = c(
     expression("Mortality (">= 75*" years)"),
-    "Temperature (ensemble mean)",
     paste0("Temperature (GCM", 1:3, ")"),
     expression("Mortality ("< 75*" years)")))
 
@@ -680,35 +647,35 @@ par(mar = c(6, 4, 4, 2))  # Bottom, Left, Top, Right
 
 # Create the plot with the point-estimates
 plot(
-  x = seq_along(values_period$point_estimate),
-  y = values_period$point_estimate,
-  xlim = c(min(seq_along(values_period$point_estimate)) - 0.2, 
-           max(seq_along(values_period$point_estimate)) + 0.2),
-  ylim = c(0, max(values_period$ci_high) + 2),
+  x = seq_along(values_plot[,"est"]),
+  y = values_plot[,"est"],
+  xlim = c(min(seq_along(values_plot[,"est"])) - 0.2, 
+           max(seq_along(values_plot[,"est"])) + 0.2),
+  ylim = c(0, max(values_plot[,"ci2"]) + 2),
   xaxt = "n",
   pch = 21,
   cex = 2,
-  bg = c(rep(col_plot$period[1], length(values_period$point_estimate)/2), 
-         rep(col_plot$period[2], length(values_period$point_estimate)/2)),
+  bg = c(rep(col_plot$period[1], length(values_plot[,"est"])/2), 
+         rep(col_plot$period[2], length(values_plot[,"est"])/2)),
   xlab = "",
   ylab = "Yearly heat-related deaths",
   main = "")
 abline(h = 0)
-abline(v = mean(seq_along(values_period$point_estimate)))
+abline(v = mean(seq_along(values_plot[,"est"])))
 
 # Add custom x-axis labels
 axis(1, 
-     at = seq_along(values_period$point_estimate), 
-     labels = names(values_period$point_estimate), las = 2)
+     at = seq_along(values_plot[,"est"]), 
+     labels = rep(names(order_plot), 2), las = 2)
 
 title(title_plot$b, 
       line = 0.65, font.main = 2, cex.main = 1.3)
 
 # Add vertical error bars using arrows()
-arrows(x0 = seq_along(values_period$point_estimate), 
-       y0 = values_period$ci_low,
-       x1 = seq_along(values_period$point_estimate), 
-       y1 = values_period$ci_high,
+arrows(x0 = seq_along(values_plot[,"est"]), 
+       y0 = values_plot[,"ci1"],
+       x1 = seq_along(values_plot[,"est"]),
+       y1 = values_plot[,"ci2"],
        angle = 90, code = 3, length = 0.1, col = "black")
 
 # Add a legend
@@ -809,13 +776,6 @@ lapply(1:length(study_param$selected_gcms), function(i) {
     lty = 1)
 })
 
-# Plot ensemble mean temperatures
-lines(
-  x = proj_temp_bc_year$year,
-  y = proj_temp_bc_year$ens_mean,
-  lwd = 4,
-  col = "black")
-
 # Add right y-axis for temperature projections
 axis(side = 4)
 mtext(
@@ -829,10 +789,9 @@ mtext(
 legend(
   "bottomright",
   legend_plot$c,
-  lty = c(1, 1, rep(1, length(study_param$selected_gcms)), 1),
-  lwd = c(2.5, 2.5, rep(2.5, length(study_param$selected_gcms)), 2.5),
+  lty = c(1, rep(1, length(study_param$selected_gcms)), 1),
+  lwd = c(2.5, rep(2.5, length(study_param$selected_gcms)), 2.5),
   col = c(col_plot$age["75plus"],
-          "black",
           col_plot$gcm,
           col_plot$age["00_74"]),
   cex = 1,
@@ -842,8 +801,8 @@ legend(
 dev.off()
 
 rm(proj_mortpopu_yearly, proj_temp_bc_year, periods_an, 
-   an_summary, values_period, col_plot, title_plot, legend_plot, nrow.fig, 
-   ncol.fig, panel_lty, period_selected_gwl)
+   an_summary, values_period, order_plot, values_plot, col_plot, title_plot, 
+   legend_plot, nrow.fig, ncol.fig, panel_lty, period_selected_gwl)
 
 #### FIGURE S1. PROCESS GRIDDED TEMPERATURES ###################################
 
