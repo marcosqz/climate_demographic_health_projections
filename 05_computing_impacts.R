@@ -1,379 +1,171 @@
 ################################################################################
 
-# This scripts estimates the health impacts of projected climate exposures by
-# combining the latest climate projections with future demographic trends. 
-# Specifically, it calculates heat-related mortality projections under the 
-# SSP2-4.5 scenario for London. The analysis separates the contribution of
-# climate change only, and quantifies the uncertainty associated with both 
-# sources.
-
-#### LOAD LIBRARIES ############################################################
-
-library(lubridate) # year
-library(dlnm) # onebasis
+# This script performs the final steps to summarise the future heat-related 
+# mortality in London over the 21st century, calculating the points estimates 
+# and 95% empirical confidence intervals that combine climate and 
+# epidemiological uncertainty.
 
 #### LOAD DATA #################################################################
 
-# Load model parameters
 load("indata/processed/study_parameters.RData")
-
-# Load output from the epidemiological model
-load("outdata/file/01_epi_model/arglag.RData")
-load("outdata/file/01_epi_model/argvar.RData")
-load("outdata/file/01_epi_model/dlnm_var.RData")
-load("outdata/file/01_epi_model/coef_age.RData")
-load("outdata/file/01_epi_model/coefsim_age.RData")
-load("outdata/file/01_epi_model/mmt_age.RData")
-
-# Load calibrated mortality and population projections
 load(paste0(
-  "outdata/file/02_calibrated_demographic_projections/",
-  "data_proj_mort_popu_calibrated_ssp2.RData"))
-load(paste0(
-  "outdata/file/02_calibrated_demographic_projections/",
-  "data_proj_mort_popu_calibrated_daily_ssp2.RData"))
-load(paste0(
-  "outdata/file/02_calibrated_demographic_projections/",
-  "data_proj_mort_popu_calibrated_constant_ssp2.RData"))
-
-# Load bias-corrected temperature projections
-load(paste0(
-  "outdata/file/03_calibrated_climate_projections/", 
-  "data_proj_temp_biascorrection_ssp245.RData"))
-
-# Load warming levels
+  "outdata/file/03_calibrated_demographic_projections/",
+  "data_proj_mort_popu_spatialcal_tempcal_ssp", 
+  study_param$ssp_scenario,
+  ".RData"))
+load(file = paste0(
+  "outdata/file/03_calibrated_demographic_projections/",
+  "attributable_number_", 
+  study_param$ssp_rcp_scenario,
+  ".RData"))
 load("indata/processed/data_global_warming_levels_ssp245.RData")
 
-#### PREPARE TEMPERATURE PROJECTION DATASETS ###################################
+#### COMPUTE DAILY TOTAL SUMMARY HEALTH IMPACTS ################################
 
-# Create a function to transform temperature projections from wide to long
-transform_tolong_tempproj <- function(data) {
-  
-  # Use reshape function to transform dataset from wide to long
-  proj_temp_long <- reshape(
-    data,
-    varying = list(names(subset(data, select = -date))),  # all columns except 'date'
-    v.names = "temperature",
-    timevar = "gcm",
-    times = names(subset(data, select = -date)),
-    idvar = "date",
-    direction = "long")
-  
-  # Arrange the new dataset
-  proj_temp_long <- proj_temp_long[order(proj_temp_long$date), ]
-  proj_temp_long$gcm <- gsub("temp\\.", "", proj_temp_long$gcm)
-  rownames(proj_temp_long) <- NULL
-  
-  return(proj_temp_long)
-  
-}
+# Build a data frame with dates, corresponding years and decades (for time-based
+# grouping)
+data_time <- data.frame(
+  date = proj_mortpopu_ldn_daily$date,
+  year = lubridate::year(proj_mortpopu_ldn_daily$date),
+  decade = lubridate::year(proj_mortpopu_ldn_daily$date) %/% 10 * 10)
 
-# Temperature projections from wide to long
-proj_temp_bc <- transform_tolong_tempproj(proj_temp_bc)
+# ---- 1.SUMMARISE DECADAL TOTAL AND AGE-SPECIFIC HEALTH IMPACTS ----
 
-#### CALCULATE HEAT-RELATED IMPACTS ############################################
-
-# Build a function for the calculation of the impacts
-calculate_health_impacts <- function(
-    constant_mortpopu # TRUE or FALSE
-    ) {
+# (1.1) Compute total AN by summing across age groups
+an[["total"]] <- lapply(study_param$selected_gcms, function(i_gcm) {
   
-  # Use the estimated coefficients
-  f.coef <- coef_age
-  # Use the simulated coefficients from the Monte Carlo simulations
-  f.coefsim <- coefsim_age
-  
-  # Use the bias-corrected temperature projections
-  f.temp <- proj_temp_bc
-  
-  # Select between original or constant demographic projections
-  if(!constant_mortpopu){
-    # Original demographic projections
-    f.mortpopu <- proj_mortpopu_daily
-  } else {
-    # Constant demographic projections
-    f.mortpopu <- proj_mortpopu_constant
-  }
-  
-  # Loop age-groups to compute heat-related mortality
-  impacts_age <- lapply(study_param$age_groups, function(i_age){
-    
-    # Exposure-response basis at the age-specific mmt
-    cenvec <- onebasis(
-      x = mmt_age[i_age], 
-      fun = argvar$fun,
-      knots = argvar$knots,
-      Boundary.knots = argvar$Bound)
-    
-    # Exposure-response basis at the projected temperatures centered at the
-    # age-specific mmt
-    bcen <- scale(
-      onebasis(
-        x = f.temp$temperature,
-        fun = argvar$fun, 
-        knots = argvar$knots,
-        Boundary.knots = argvar$Bound),
-      center = cenvec, 
-      scale = FALSE)
-    
-    # Relative risks with the coefficients of the epidemiological association 
-    rrest <- exp(bcen %*% f.coef[[i_age]])
-    
-    # Relative risks with the simulations of the epidemiological association 
-    rrsim <- exp(bcen %*% f.coefsim[[i_age]])
-    
-    # Bind estimated and simulations (change names to differentiate them)
-    colnames(rrest) <- "est"
-    colnames(rrsim) <- paste0(
-      "sim", formatC(1:study_param$n_sim, 
-                     width = (log10(study_param$n_sim)+1), 
-                     flag = "0"))
-    rr <- cbind(rrest, rrsim)
-    
-    # Calculate attributable fraction
-    af <- (rr - 1) / rr # AF = (RR-1)/RR
-    
-    # Calculate heat-related deaths by setting AF=0 to temperatures below mmt
-    ind_heat <- f.temp$temperature > mmt_age[i_age]
-    af[!ind_heat,] <- 0
-    
-    # Create a data.frame to store all the impacts
-    impacts <- data.frame(
-      date = f.temp$date,
-      gcm = f.temp$gcm,
-      af); rm(af)
-    
-    # IMPACTS FROM WIDE TO LONG (single simulation column into multiple 
-    # simulation columns)
-      
-    # Loop simulations (this loop works slightly faster than reshape function)
-    impacts <- lapply(
-      colnames(impacts)[!(colnames(impacts) %in% c("date", "gcm"))], 
-      function(i_col) {
-      
-      # Subset the data for a specific column with AF values                    
-      impacts_subset <- subset(
-        impacts,
-        select = c("date", "gcm", i_col))
-      
-      # Add column with the epidemiological estimate/simulation number
-      impacts_subset$epi <- i_col
-      names(impacts_subset)[names(impacts_subset) == i_col] <-
-        paste0("af.", i_age)
-      
-      return(impacts_subset)
-    
-    })
-    impacts <- do.call(rbind, impacts)
-    # Reorder columns
-    impacts <- impacts[, c("date", "gcm", "epi", paste0("af.", i_age))]
-        
-    # MERGE IMPACTS DATAFRAME WITH DEMOGRAPHIC PROJECTIONS
-    impacts <- merge(
-      x = impacts,
-      y = subset(
-        f.mortpopu, 
-        select = c("year", "date", 
-                   paste0("mort.", i_age), 
-                   paste0("popu.", i_age))),
-      by = "date")
-    
-    # CALCULATE ATTRIBUTABLE NUMBER (AN = AF * MORT)
-    impacts[[paste0("an.", i_age)]] <- # AN
-      impacts[[paste0("af.", i_age)]] * # AF
-      impacts[[paste0("mort.", i_age)]] # MORT
-
-    # CALCULATE ATTRIBUTABLE NUMBER RATE (AN_RATE = AN / POPULATION * 100000)
-    impacts[[paste0("an_rate.", i_age)]] <- # AN RATE
-      impacts[[paste0("an.", i_age)]] / # AN
-      impacts[[paste0("popu.", i_age)]] * 100000 # POPULATION * 100000
-    
-    # REMOVE COLUMNS WITH THE DEMOGRAPHIC DATA
-    impacts[, paste0(c("mort.", "popu."), i_age)] <- NULL
-    impacts <- impacts[, c("year", setdiff(names(impacts), "year"))]
-    
-    return(impacts)
-    
+  # Sum ANs for both age groups for each GCM and epidemiological association
+  list_age <- lapply(study_param$age_groups, function(i_age) {
+    an[[i_age]][[i_gcm]]
   })
-  # Bind by columns the age-specific impact datasets
-  impacts <- do.call(cbind, impacts_age)
-
-  # Remove the duplicated columns (date, gcm, sim) created by binding datasets
-  impacts <- impacts[, !duplicated(as.list(impacts))]
-
-  # CALCULATE TOTAL AN BY SUMMING AGE-SPECIFIC ANs
-  impacts$an <- rowSums(
-    subset(impacts, 
-           select = paste0("an.", study_param$age_groups)))
+  list_age <- Reduce("+", list_age)
   
-  # Reorder rows
-  impacts <- impacts[
-    order(impacts$date, impacts$gcm, impacts$epi),]
+  return(list_age)
   
-  return(impacts)
+}); names(an[["total"]]) <- study_param$selected_gcms
+
+# Loop over total and age groups
+an_decade_summary_age <- lapply(names(an), function(i_age) {
   
-}
-
-
-# SET DIFFERENT COMBINATIONS FOR THE CALCULATION OF HEALTH-IMPACT PROJECTIONS
-opt_proj <- c("full_democlim" = FALSE, "only_clim" = TRUE)
-
-# Initialize impacts object
-impacts <- list()
-
-# Loop different combinations
-for (i_proj in opt_proj) {
-      
-  print(paste0(
-    "Run daily impacts: constant_population-", i_proj))
-  
-  # Define the name indexing the list of the specific combination
-  name_list <- names(opt_proj)[i_proj == opt_proj]
-  
-  # Calculate the impacts and store it in the list
-  impacts[[name_list]] <- calculate_health_impacts(
-    constant_mortpopu = i_proj)
-  
-  rm(name_list)
-      
-}; rm(i_proj)
-
-#### TEMPORAL AGGREGATION OF IMPACTS (DAILY TO YEARLY) #########################
-
-# NOTE: From now we are only keeping attributable numbers (AN), but any of the
-# other impacts attributable fractions (AF) or AN rates could be used in a
-# similar way
-
-an_daily <- lapply(impacts, function(data) {
-  
-  # List of names with "af" and "an_rate"
-  col_eliminate <- c(
-    paste0("af.", study_param$age_groups),
-    paste0("an_rate.", study_param$age_groups))
-  col_keep <- names(data)[!(names(data) %in% col_eliminate)]
-  
-  # Keep columns different than columns_eliminate
-  data <- subset(data, select = col_keep)
-  
-  return(data)
-  
-})
-
-# Create function to aggregate impact datasets from daily to yearly
-transform_impacts_to_yearly <- function(data) {
-
-  # Remove date column
-  data_year <- subset(data, select = -date)
-  
-  # Response variables to be aggregated (total and age-specific AN)
-  response_vars <- c("an", paste0("an.", study_param$age_groups))
-  
-  # Construct the formula to aggregate response by year, gcm, and simulation
-  agg_formula <- paste(
-    "cbind(", 
-    paste(response_vars, collapse = ", "), 
-    ") ~ year + gcm + epi")
-  agg_formula <- as.formula(agg_formula)
-
-  # Aggregate AN by year and the other variable (e.g. gcm, simulations)
-  data_year <- aggregate(agg_formula, data = data_year, FUN = sum)
-  
-  return(data_year)
-  
-}
-
-# Run the yearly impacts for all datasets
-an_year <- lapply(an_daily, function(x) {transform_impacts_to_yearly(x)})
-
-# CALCULATE THE ONLY DEMOGRAPHIC SCENARIOS
-
-# Check that full and climate scnarion have the same order
-if(all.equal(an_year$full_democlim[, c("year", "gcm", "epi")],
-             an_year$only_clim[, c("year", "gcm", "epi")])) {
-  
-  # DEMO = FULL-CLIM
-  an_year$only_demo <- cbind(
-    an_year$full_democlim[, c("year", "gcm", "epi")],
-    an_year$full_democlim[, c("an", paste0("an.", study_param$age_groups))] -
-      an_year$only_clim[, c("an", paste0("an.", study_param$age_groups))])
-  
-}
-
-#### TEMPORAL AGGREGATION OF IMPACTS (BY GWLs AND FIXED PERIODS) ###############
-
-# Initialize an_period object
-an_period <- list()
-
-# TEMPORAL AGGREGATION TO GWL (2C) PERIID
-
-# Function to compute the AN in the GWL 21-year period
-# (NOTE: It could be simplified if we only use simulation and gcms)
-aggregation_period <- function(
-    data, 
-    method, # "gwl" for using the 21-year global warming periods by GCM or
-            # "fixed" for a unique fixed period for all GCMs
-    period = NULL # specify the first and last year of the fixed period for
-                  # method = "fixed"
-    ) {
-  
-  if(method == "gwl") {
+  # (1.2) Aggregate daily ANs into decadal totals
+  an_decade <- lapply(study_param$selected_gcms, function(i_gcm) { # Loop GCMs
     
-    # Merge dataset with yearly ANs with the 21-year period of GWL
-    data <- merge(
-      data,
-      subset(data_gwl, 
-             warming_level == study_param$selected_warming,
-             select = c("gcm", "year1", "year2")))
+    # Split daily data by decade
+    data_decades <- split(data.frame(an[[i_age]][[i_gcm]]), data_time$decade)
     
-    # Select only years within the GWL
-    data <- subset(data, (year >= year1) & (year <= year2))
+    # Compute decadal sums for each GCM
+    data_decades <- sapply(data_decades, function(x) colSums(x))
     
-  } else if (method == "fixed") {
-    # Select only years within the 21-year fixed period
-    data <- subset(data, (year >= period[1]) & (year <= period[2]))
-  } 
+    return(t(data_decades))
     
-  # Response variables to be aggregated (total and age-specific AN)
-  response_vars <- c("an", paste0("an.", study_param$age_groups))
+  }); names(an_decade) <- study_param$selected_gcms
   
-  # Construct the formula to aggregate response by gcm and epi uncertainty
-  agg_formula <- paste(
-    "cbind(", paste(response_vars, collapse = ", "), ") ~ gcm + epi")
-  agg_formula <- as.formula(agg_formula)
+  # (1.3) Derive point estimate and 95% confidence interval
   
-  # Aggregate data
-  data <- aggregate(agg_formula, data = data, FUN = "sum")
+  # Compute point estimate as the mean across GCMs of ANs using only the
+  # estimated coefficients of the ERF
+  an_decade_pe <- rowMeans(sapply(an_decade, function(x) x[,"est"]))
   
-  # Calculate point estimate
-  estimate <- colMeans(subset(data, epi == "est", select = response_vars))
+  # Compute 95% CI from AN distribution across GCM and simulated coefficients
+  # of the ERF
+  an_decade_ci <- lapply(an_decade, function(x) {subset(x, select = -est)})
+  an_decade_ci <- do.call(cbind, an_decade_ci)
+  an_decade_ci <- t(apply(an_decade_ci, 1, quantile, c(0.025, 0.975)))
   
-  # Calculate confidence intervals
-  confidence_interval <- apply(
-    subset(data, epi != "est", select = response_vars), 2, 
-    quantile, c(0.025, 0.975))
+  # Store decadal summary results in a data frame
+  an_decade_summary <- data.frame(
+    time = unique(data_time$decade),
+    fit = an_decade_pe,
+    low = an_decade_ci[,"2.5%"],
+    high = an_decade_ci[,"97.5%"])
   
-  output <- rbind(
-    estimate,
-    confidence_interval)
-  rownames(output) <- c("est", "ci1", "ci2")
-  
-  return(output)
-  
-}
+  return(an_decade_summary)
 
-an_period$gwl <- lapply(an_year, function(x) {
-  aggregation_period(data = x, method = "gwl")})
-an_period$end_century <- lapply(an_year, function(x) {
-  aggregation_period(data = x, method = "fixed", period = c(2079, 2099))})
+}); names(an_decade_summary_age) <- names(an)
+
+# ---- 2.TEMPORAL AGGREGATION OF THE IMPACTS BY RELEVANT TEMPORAL WINDOWS ----
+# Aggregate heat-related mortality by specific temporal windows:
+# (a) global warming level (GWL) of 2°C, and
+# (b) fixed future period (end-of-century, 2079-2099).
+
+# 2a. global warming level (GWL) of 2°C
+an_gwl_summary_age <- lapply(names(an), function(i_age) {
+  
+  # For each GCM, sum AN over the years corresponding to the selected GWL period
+  an_gwl <- t(sapply(study_param$selected_gcms, function(i_gcm) {
+    
+    # Extract start and end years defining the GWL period for each GCM
+    years_gwl <- unlist(subset(
+      data_gwl, 
+      (warming_level == study_param$selected_warming) & (gcm == i_gcm),
+      select = c("year1", "year2")))
+    
+    # Sum daily ANs across the selected GWL period for all epidemiological
+    # all estimated and simulated curves
+    an_period <- colSums(
+      an[[i_age]][[i_gcm]][data_time$year %in% c(years_gwl[1]:years_gwl[2]),])
+    
+    return(an_period)
+    
+  }))
+  
+  # Derive point estimate and 95% confidence interval
+  
+  # Compute point estimate as the mean across GCMs of ANs using only the
+  # estimated coefficients of the ERF
+  an_gwl_pe <- mean(an_gwl[,"est"])
+  
+  # Compute 95% CI from AN distribution across GCM and simulated coefficients
+  # of the ERF
+  an_gwl_ci <- quantile(an_gwl[,colnames(an_gwl)!="est"], c(0.025, 0.975))
+  
+  # Store GWL summary results in a data frame
+  an_gwl_summary <- data.frame(
+    time = "gwl",
+    fit = an_gwl_pe,
+    low = an_gwl_ci["2.5%"],
+    high = an_gwl_ci["97.5%"])
+  
+  return(an_gwl_summary)
+  
+}); names(an_gwl_summary_age) <- names(an)
+
+# 2b. fixed future period (end-of-century, 2079-2099).
+an_endcentury_summary_age <- lapply(names(an), function(i_age) {
+  
+  # Sum AN over the years corresponding to the end-of-century period
+  an_endcentury <- t(
+    sapply(study_param$selected_gcms, function(i_gcm) {colSums(
+      an[[i_age]][[i_gcm]][data_time$year %in% c(2079:2099),])
+    }))
+  
+  # Compute point estimate as the mean across GCMs of ANs using only the
+  # estimated coefficients of the ERF
+  an_endcentury_pe <- mean(an_endcentury[,"est"])
+  
+  # Compute 95% CI from AN distribution across GCM and simulated coefficients
+  # of the ERF
+  an_endcentury_ci <- 
+    quantile(an_endcentury[,colnames(an_endcentury)!="est"], c(0.025, 0.975))
+  
+  # Store end-of-century summary results in a data frame
+  an_endcentury_summary <- data.frame(
+    time = "endcentury",
+    fit = an_endcentury_pe,
+    low = an_endcentury_ci["2.5%"],
+    high = an_endcentury_ci["97.5%"])
+  
+  return(an_endcentury_summary)
+  
+}); names(an_endcentury_summary_age) <- names(an)
 
 #### SAVE OUTPUTS ##############################################################
-
-# Save heat-related mortality by year
-save(an_year, file = paste0(
-  "outdata/file/04_health_impacts/heat_related_mortality_year_",
+save(an_decade_summary_age, file = paste0(
+  "outdata/file/04_health_impacts/heat_related_mortality_decades_",
   study_param$ssp_rcp_scenario,".RData"))
-
-# Save heat-related mortality by 21-year periods
-save(an_period, file = paste0(
-  "outdata/file/04_health_impacts/heat_related_mortality_period_",
+save(an_endcentury_summary_age, file = paste0(
+  "outdata/file/04_health_impacts/heat_related_mortality_endcentury_",
+  study_param$ssp_rcp_scenario,".RData"))
+save(an_gwl_summary_age, file = paste0(
+  "outdata/file/04_health_impacts/heat_related_mortality_gwl_",
   study_param$ssp_rcp_scenario,".RData"))
