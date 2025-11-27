@@ -11,7 +11,7 @@
 
 load("indata/processed/data_obs_temp_mort.RData")
 load("indata/processed/data_obs_popu.RData")
-load("indata/processed/data_proj_mort_popu_ssp2.RData")
+load("indata/processed/data_proj_mort_ssp2.RData")
 load("indata/processed/study_parameters.RData")
 
 # Load attributable fractions
@@ -21,9 +21,9 @@ load(paste0(
 
 #### CALIBRATION OF DEMOGRAPHIC PROJECTIONS ####################################
 
-# ---- SPATIAL CALIBRATION OF DEMOGRAPHIC PROJECTIONS ----
-# Adjust national-level mortality and population projections (UK & NI)
-# to reflect city-specific (London) demographic levels using observed data.
+# ---- SPATIAL CALIBRATION OF MORTALITY PROJECTIONS ----
+# Adjust national-level mortality projections (UK & NI) to reflect 
+# city-specific (London) demographic levels using observed data.
 
 # Extract mortality from the temperature-mortality dataset
 data_mort <- subset(
@@ -41,49 +41,26 @@ data_mort <- aggregate(formula_agg, data = data_mort, FUN = sum)
   
 # Remove row for 2012 (we don't have mortality data for the whole year)
 data_mort <- subset(data_mort, year != 2012)
+  
+# Merge observation and projections (it only keeps matching years)
+merged_data <- merge(data_mort, proj_mort, by = "year")
+  
+# Calculate mean of observations and projections in the coinciding years
+merged_data <- subset(merged_data, select = -year)
+merged_data <- colMeans(merged_data)
 
-# Loop mortality and population spatial calibration
-proj_mortpopu_ldn <- lapply(c("mort", "popu"), function(var) {
-  
-  # Select mortality or population observation dataset
-  if(var == "mort") {
-    data <- data_mort
-  } else if (var == "popu") {
-    data <- data_popu
-  }
-  
-  # Subset mortality or population projection dataset
-  proj <- subset(
-    proj_mortpopu,
-    select = c("year", paste0(var, ".",  study_param$age_groups)))
-  
-  # Merge observation and projections (it only keeps matching years)
-  merged_data <- merge(data, proj, by = "year")
-  
-  # Calculate mean of observations and projections in the coinciding years
-  merged_data <- subset(merged_data, select = -year)
-  merged_data <- colMeans(merged_data)
-  
-  # LOOP AGE GROUPS
-  for(i_age in study_param$age_groups) {
-    
-    # Compute correction factor as the ratio of observed to projected means
-    cf <- merged_data[[paste0(var, ".", i_age, ".x")]] / # Observations (London)
-      merged_data[[paste0(var, ".", i_age, ".y")]] # Projections (UK and NI)
-    
-    # Apply the correction factor to all projection years
-    proj[[paste0(var, ".", i_age)]] <- proj[[paste0(var, ".", i_age)]] * cf
-    
-    rm(correction)
-    
-  }; rm(i_age)
-  
-  return(proj)
-  
+# Calculate correction factors
+corr_factor <- sapply(study_param$age_groups, function(i_age) {
+  merged_data[[paste0("mort.", i_age, ".x")]] / # Observations (London)
+    merged_data[[paste0("mort.", i_age, ".y")]] # Projections (UK and NI)
 })
 
-# Merge spatially calibrated mortality and population projections
-proj_mortpopu_ldn <- do.call(merge, proj_mortpopu_ldn)
+# Create a new dataset with the spatially calibrated projection
+proj_mort_ldn <- proj_mort
+for(i_age in study_param$age_groups) {
+  proj_mort_ldn[[paste0("mort.", i_age)]] <-
+    proj_mort_ldn[[paste0("mort.", i_age)]] * corr_factor[[i_age]]
+}; rm(i_age)
 
 # ---- TEMPORAL CALIBRATION OF DEMOGRAPHIC PROJECTIONS ----
 # Disaggregate annual mortality projections into daily values 
@@ -108,7 +85,7 @@ weights_seas_doy <- lapply(study_param$age_groups, function(i_age) {
 
 # Create a full-period dataset of daily seasonal weights for each
 # projection year
-weights_seas_period <- lapply(proj_mortpopu$year, function(i_year) { # loop projection years
+weights_seas_period <- lapply(proj_mort$year, function(i_year) { # loop projection years
   
   # Create a data frame with all dates
   dates <- data.frame(
@@ -134,19 +111,19 @@ weights_seas_period <- do.call(rbind, weights_seas_period)
 rm(weights_seas_doy)
 
 # Expand demographics projections from years to days
-proj_mortpopu_ldn_daily <- merge(weights_seas_period, proj_mortpopu_ldn)
+proj_mort_ldn_daily <- merge(weights_seas_period, proj_mort_ldn)
 
 # Compute seasonal daily mortality by multiplying yearly deaths by the weights
 # of the day of the year
 for(i_age in study_param$age_groups) { # loop age-groups
   
   # Multiply annual mortality totals by daily weights to obtain daily series
-  proj_mortpopu_ldn_daily[[paste0("mort.", i_age)]] <-
-    proj_mortpopu_ldn_daily[[paste0("mort.", i_age)]] * 
-    proj_mortpopu_ldn_daily[[paste0("weights.", i_age)]]
+  proj_mort_ldn_daily[[paste0("mort.", i_age)]] <-
+    proj_mort_ldn_daily[[paste0("mort.", i_age)]] * 
+    proj_mort_ldn_daily[[paste0("weights.", i_age)]]
   
   # Remove the column with the weight
-  proj_mortpopu_ldn_daily[[paste0("weights.", i_age)]] <- NULL
+  proj_mort_ldn_daily[[paste0("weights.", i_age)]] <- NULL
 }; rm(i_age)
 
 #### ESTIMATION OF THE ATTRIBUTABLE NUMBER OF DEATHS ###########################
@@ -161,7 +138,7 @@ an <- lapply(study_param$age_groups, function(i_age) {
     
     # AN = AF * mort
     an <- af[[i_age]][[i_gcm]] * # Attributable fraction
-      proj_mortpopu_ldn_daily[[paste0("mort.", i_age)]] # Mortality
+      proj_mort_ldn_daily[[paste0("mort.", i_age)]] # Mortality
     
     return(an)
     
@@ -173,14 +150,19 @@ an <- lapply(study_param$age_groups, function(i_age) {
 
 #### SAVE OUTPUTS ##############################################################
 
-save(proj_mortpopu_ldn, file = paste0(
+save(corr_factor, file = paste0(
   "outdata/file/03_calibrated_demographic_projections/",
-  "data_proj_mort_popu_spatialcal_ssp", 
+  "correction_factor_spatialcal_ssp", 
   study_param$ssp_scenario,
   ".RData"))
-save(proj_mortpopu_ldn_daily, file = paste0(
+save(proj_mort_ldn, file = paste0(
   "outdata/file/03_calibrated_demographic_projections/",
-  "data_proj_mort_popu_spatialcal_tempcal_ssp", 
+  "data_proj_mort_spatialcal_ssp", 
+  study_param$ssp_scenario,
+  ".RData"))
+save(proj_mort_ldn_daily, file = paste0(
+  "outdata/file/03_calibrated_demographic_projections/",
+  "data_proj_mort_spatialcal_tempcal_ssp", 
   study_param$ssp_scenario,
   ".RData"))
 save(an, file = paste0(

@@ -102,45 +102,40 @@ proj_mort <- subset(proj_mort, age != "Newborn") # Exclude "Newborn" age group
 proj_mort$year <- as.numeric(substr(proj_mort$period, 1, 4))
 
 # Merge projections, scale to absolute counts, and compute annual deaths
-proj_mortpopu <- merge(proj_popu, proj_mort)
-rm(proj_mort, proj_popu)
-proj_mortpopu$popu <- proj_mortpopu$popu * 1000
-proj_mortpopu$mort <- proj_mortpopu$popu * (1 - proj_mortpopu$assr)
-proj_mortpopu <- subset(
-  proj_mortpopu, 
-  select = c("age", "sex", "year", "popu", "mort"))
+proj_mort <- merge(proj_popu, proj_mort)
+rm(proj_popu)
+proj_mort$popu <- proj_mort$popu * 1000
+proj_mort$mort <- proj_mort$popu * (1 - proj_mort$assr)
+
+# We only keep the mortality projections, but keep population projections too 
+# if AN rates are one of the health outcome of interest
+proj_mort <- subset(proj_mort, select = c("age", "sex", "year", "mort"))
 
 # Aggregate by age and year, combining both sexes
-proj_mortpopu <- aggregate(
-  cbind(popu, mort) ~ age + year, 
-  data = proj_mortpopu, 
-  FUN = sum)
+proj_mort <- aggregate(mort ~ age + year, data = proj_mort, FUN = sum)
 
 # Define age groups and aggregate into <75 and ≥75
-proj_mortpopu$age_group <- ifelse(
-  test = proj_mortpopu$age %in% 
+proj_mort$age_group <- ifelse(
+  test = proj_mort$age %in% 
     c("75--79", "80--84", "85--89", "90--94", "95--99", "100+"),
   yes = "75plus",
   no = "00_74")
-proj_mortpopu$age <- NULL
-proj_mortpopu <- aggregate(
-  cbind(popu, mort) ~ age_group + year, 
-  data = proj_mortpopu, 
-  FUN = sum)
+proj_mort$age <- NULL
+proj_mort <- aggregate(mort ~ age_group + year, data = proj_mort, FUN = sum)
 
 # Reshape long to wide and rescale annual deaths
-proj_mortpopu <- reshape(
-  data = proj_mortpopu, 
+proj_mort <- reshape(
+  data = proj_mort, 
   timevar = "age_group", 
   idvar = "year", 
   direction = "wide")
-proj_mortpopu$mort.00_74 <- proj_mortpopu$mort.00_74/5
-proj_mortpopu$mort.75plus <- proj_mortpopu$mort.75plus/5
+proj_mort[,paste0("mort.", study_param$age_groups)] <-
+  proj_mort[,paste0("mort.", study_param$age_groups)]/5
 
 # Expand to one row per year within each 5-year block
-years_demodata <- proj_mortpopu$year
-proj_mortpopu <- proj_mortpopu[rep(1:(nrow(proj_mortpopu)), each = 5),]
-proj_mortpopu$year <- c(sapply(years_demodata, function(y) {y + 0:4}))
+years_demodata <- proj_mort$year
+proj_mort <- proj_mort[rep(1:(nrow(proj_mort)), each = 5),]
+proj_mort$year <- c(sapply(years_demodata, function(y) {y + 0:4}))
 rm(years_demodata)
 
 #### DATASET 4: TEMPERATURE PROJECTIONS ############
@@ -387,12 +382,10 @@ save(data_tempmort, file = "indata/processed/data_obs_temp_mort.RData")
 save(data_popu, file = "indata/processed/data_obs_popu.RData")
 # Save temperature projections
 save(proj_temp, file = paste0(
-  "indata/processed/data_proj_temp_",
-  study_param$ssp_rcp_scenario, ".RData"))
+  "indata/processed/data_proj_temp_",study_param$ssp_rcp_scenario, ".RData"))
 # Save mortality and population projections
-save(proj_mortpopu, file = paste0(
-  "indata/processed/data_proj_mort_popu_ssp", 
-  study_param$ssp_scenario,".RData"))
+save(proj_mort, file = paste0(
+  "indata/processed/data_proj_mort_ssp", study_param$ssp_scenario,".RData"))
 # Save Global Warming Level (GWL) periods
 save(data_gwl, file = paste0(
   "indata/processed/data_global_warming_levels_",

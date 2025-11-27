@@ -39,13 +39,16 @@ load(paste0(
   study_param$ssp_rcp_scenario,".RData"))
 
 # Load raw and calibrated demographic projections
-load("indata/processed/data_proj_mort_popu_ssp2.RData")
+load("indata/processed/data_proj_mort_ssp2.RData")
 load(paste0(
   "outdata/file/03_calibrated_demographic_projections/",
-  "data_proj_mort_popu_spatialcal_ssp2.RData"))
+  "correction_factor_spatialcal_ssp2.RData"))
 load(paste0(
   "outdata/file/03_calibrated_demographic_projections/",
-  "data_proj_mort_popu_spatialcal_tempcal_ssp2.RData"))
+  "data_proj_mort_spatialcal_ssp2.RData"))
+load(paste0(
+  "outdata/file/03_calibrated_demographic_projections/",
+  "data_proj_mort_spatialcal_tempcal_ssp2.RData"))
 
 # Load attributable numbers
 load(paste0(
@@ -389,10 +392,18 @@ rm(proj_temp_year, data_temp_year, col_plot, data_time, title_plot_af,
 
 #### FIGURE 3. DEMOGRAPHIC PROJECTIONS AND ATTRIBUTABLE NUMBERS ################
 
-# Calculate yearly mortality observations
-data_mort_year <- aggregate(
-  cbind(mort.00_74, mort.75plus) ~ year, 
-  data = data_tempmort, FUN = sum)
+# Create formula for aggregate mortality over years
+formula_agg <- as.formula(paste0(
+  "cbind(", 
+  paste(paste0("mort.", study_param$age_groups), collapse = ", "),
+  ") ~ year"))
+
+# Aggregate observed mortality by year
+data_mort_year <- subset(data_tempmort, 
+       select = c("year", paste0("mort.", study_param$age_groups)))
+data_mort_year <- aggregate(formula_agg, data = data_mort_year, FUN = sum)
+
+# Remove row for 2012 (we don't have mortality data for the whole year)
 data_mort_year <- subset(data_mort_year, year != 2012)
 
 # Define colors for the age groups
@@ -408,15 +419,15 @@ data_time <- data.frame(
 
 # Title for panels with AN
 title_plot_an <- c(
-  "00_74" = expression(bold("d) AN - Young ("< 75*" years)")),
-  "75plus" = expression(bold("e) AN - Old (">= 75*" years)")))
+  "00_74" = expression(bold("c) Attributable Number - Young ("< 75*" years)")),
+  "75plus" = expression(bold("d) Attributable Number - Old (">= 75*" years)")))
 
 # ---- PLOT DEMOGRAPHIC PROJECTIONS AND ATTRIBUTABLE NUMBERS ----
 pdf("outdata/plot/fig3_demographic_projections.pdf", width = 12, height = 8)
 
 layout_matrix <- matrix(c(
-  1, 1, 2, 2, 4, 4, 
-  3, 3, 3, 3, 5, 5),
+  1, 1, 2, 2, 2, 2, 
+  3, 3, 3, 4, 4, 4),
   nrow = 2, byrow = TRUE)
 layout(layout_matrix)
 par(mar = c(4.5, 6, 2.5, 0.5),
@@ -425,133 +436,108 @@ par(mar = c(4.5, 6, 2.5, 0.5),
 
 # ---- PANELS A-B: SPATIAL CALIBRATION OF DEMOGRAPHIC PROJECTIONS ----
 
-# Define plot-specific parameters for "mort" and "popu"
-title_plot_cal <- c(
-  "mort" = "a) Spatial calibration: mortality",
-  "popu" = "b) Spatial cal.: population")
-ylab_plot_cal <- c(
-  "mort" = "Number of deahts (x100,000)",
-  "popu" = "Population (x100,000)")
-calperiod_plot <- list(
-  "mort" = c(1990, 2011),
-  "popu" = c(1992, 2019))
-pos_text_cal <- list(
-  "mort" = c(0.62, 0.54, 0.40, 0.15), # arrow, text_cal, cf1, cf2
-  "popu" = c(40, 30, 57, 7))
-text_cf <- list(
-  "mort" = c("cf: x0.09", "cf: x0.10"), # young, old
-  "popu" = c("cf: x0.13", "cf: x0.09"))
+# Initialize plot
+plot(x = 1, 
+     y = 1,
+     xlim = range(proj_mort_ldn$year),
+     ylim = c(0,
+              max(subset(proj_mort_ldn, select = -year),
+                  subset(data_mort_year, select = -year))/1e5),
+     type = "n",
+     main = "",
+     xlab = "Year", 
+     ylab = "Number of deahts (x100,000)", 
+     cex.lab = 1.5,
+     cex.axis = 1.5,
+     xaxt = "n")
+title("a) Spatial calibration", line = 1.0, cex.main = 2)
 
-# Loop "mort" and "popu" variables
-run_loop <- lapply(c("mort", "popu"), function(var) {
+# Draw a transparent polygon with a rectangle with the calibration period
+polygon(
+  x = c(min(data_mort_year$year), max(data_mort_year$year), 
+        max(data_mort_year$year), min(data_mort_year$year)),
+  y = c(-1000, -1000, 1000, 1000),
+  col = adjustcolor("grey", alpha.f = 0.2),
+  border = NA)
+
+# Draw horizontal lines defining the calibration period
+arrows(
+  x0 = min(data_mort_year$year), 
+  x1 = max(data_mort_year$year), 
+  y0 = 0.62, 
+  lwd = 1.5,
+  code = 3, 
+  length = 0.1, 
+  col = "grey")
+text(
+  paste0("Calibration \n period"),
+  x = mean(data_mort_year$year),
+  y = 0.54,
+  col = "black",
+  cex = 1.25)
+text(
+  round(corr_factor[["00_74"]], 2),
+  x = 1960,
+  y = 0.40,
+  col = col_plot["00_74"],
+  cex = 1.25)
+text(
+  round(corr_factor[["75plus"]], 2),
+  x = 1960,
+  y = 0.15,
+  col = col_plot["75plus"],
+  cex = 1.25)
+
+# Add axis
+axis(1, cex.axis = 1.5)
+
+# Plot demographic projections by age group
+lapply(study_param$age_groups, function(i_age) {
   
-  if(var == "mort") {data_obs <- data_mort_year
-  } else if (var == "popu") {data_obs <- data_popu}
+  # Plot calibrated demographic projections
+  points(proj_mort_ldn$year, 
+         proj_mort_ldn[[paste0("mort.", i_age)]]/1e5, 
+         col = "black",
+         bg = col_plot[i_age],
+         pch = 21,
+         cex = 2)
   
-  # Initialize plot
-  plot(x = 1, 
-       y = 1,
-       xlim = range(proj_mortpopu_ldn$year),
-       ylim = c(0,
-                max(proj_mortpopu_ldn[[paste0(var, ".00_74")]], 
-                    proj_mortpopu_ldn[[paste0(var, ".75plus")]],
-                    unlist(data_obs
-                           [,paste0(var, ".", study_param$age_groups)]))/1e5),
-       type = "n",
-       main = "",
-       xlab = "Year", 
-       ylab = ylab_plot_cal[var], 
-       cex.lab = 1.5,
-       cex.axis = 1.5,
-       xaxt = "n")
-  title(title_plot_cal[[var]], line = 1.0, cex.main = 2)
-  
-  # Draw a transparent polygon with a rectangle with the calibration period
-  polygon(
-    x = c(calperiod_plot[[var]][1], calperiod_plot[[var]][2], 
-          calperiod_plot[[var]][2], calperiod_plot[[var]][1]),
-    y = c(-1000, -1000, 1000, 1000),
-    col = adjustcolor("grey", alpha.f = 0.2),
-    border = NA)
-  
-  # Draw horizontal lines defining the calibration period
-  arrows(
-    x0 = calperiod_plot[[var]][1], 
-    x1 = calperiod_plot[[var]][2], 
-    y0 = pos_text_cal[[var]][1], 
-    lwd = 1.5,
-    code = 3, 
-    length = 0.1, 
-    col = "grey")
-  text(
-    paste0("Calibration \n period"),
-    x = mean(calperiod_plot[[var]]),
-    y = pos_text_cal[[var]][2],
-    col = "black",
-    cex = 1.25)
-  text(
-    text_cf[[var]][1],
-    x = 1960,
-    y = pos_text_cal[[var]][3],
-    col = col_plot["00_74"],
-    cex = 1.25)
-  text(
-    text_cf[[var]][2],
-    x = 1960,
-    y = pos_text_cal[[var]][4],
-    col = col_plot["75plus"],
-    cex = 1.25)
-  
-  # Add axis
-  axis(1, cex.axis = 1.5)
-  
-  # Plot demographic projections by age group
-  lapply(study_param$age_groups, function(i_age) {
-    
-    # Plot calibrated demographic projections
-    points(proj_mortpopu_ldn$year, 
-           proj_mortpopu_ldn[[paste0(var, ".", i_age)]]/1e5, 
-           col = "black",
-           bg = col_plot[i_age],
-           pch = 21,
-           cex = 2)
-    
-    # Plot demographic observations
-    points(data_obs$year, 
-           data_obs[[paste0(var, ".", i_age)]]/1e5, 
-           pch = 4, 
-           col = col_plot[i_age], 
-           cex = 2)
-    lines(data_obs$year, 
-          data_obs[[paste0(var, ".", i_age)]]/1e5,
-          col = col_plot[i_age], 
-          lwd = 2)
-    
-  })
-  abline(h = 0)
-  
-  # Add legend
-  legend("right", 
-         legend = c(expression("Young ("< 75*" years)"),
-                    expression("Old (">= 75*" years)"), 
-                    "Projections", 
-                    "Observations"),
-         pch = c(15, 15, 21, 4),
-         pt.bg = c(NA, NA, "darkgrey", NA),
-         col = c(col_plot[study_param$age_groups], "black", "darkgrey"),
-         cex = 1.25)
+  # Plot demographic observations
+  points(data_mort_year$year, 
+         data_mort_year[[paste0("mort.", i_age)]]/1e5, 
+         pch = 4, 
+         col = col_plot[i_age], 
+         cex = 2)
+  lines(data_mort_year$year, 
+        data_mort_year[[paste0("mort.", i_age)]]/1e5,
+        col = col_plot[i_age], 
+        lwd = 2)
   
 })
+abline(h = 0)
 
-# ---- PANEL C: TEMPORAL CALIBRATION OF DEMOGRAPHIC PROJECTIONS ----
+# Add legend
+legend("right", 
+       legend = c(expression("Young ("< 75*" years)"),
+                  expression("Old (">= 75*" years)"), 
+                  "Projections", 
+                  "Observations"),
+       pch = c(15, 15, 21, 4),
+       pt.bg = c(NA, NA, "darkgrey", NA),
+       col = c(col_plot[study_param$age_groups], "black", "darkgrey"),
+       cex = 1.25)
+  
+
+
+# ---- PANEL B: TEMPORAL CALIBRATION OF DEMOGRAPHIC PROJECTIONS ----
 
 # Select only projection period
-ind_plot <- proj_mortpopu_ldn_daily$year >= 2000
+ind_plot <- proj_mort_ldn_daily$year >= 2000
 
 # Initialize mortality plot
-plot(x = proj_mortpopu_ldn_daily$date[ind_plot],
-     y = rep(1, length(proj_mortpopu_ldn_daily$date[ind_plot])),
-     ylim = c(0, max(subset(proj_mortpopu_ldn_daily[ind_plot,], 
+plot(x = proj_mort_ldn_daily$date[ind_plot],
+     y = rep(1, length(proj_mort_ldn_daily$date[ind_plot])),
+     ylim = c(0, max(subset(proj_mort_ldn_daily[ind_plot,], 
                             select = paste0("mort.", study_param$age_groups)))),
      type = "n",
      xlab = "Day",
@@ -561,14 +547,14 @@ plot(x = proj_mortpopu_ldn_daily$date[ind_plot],
      cex.lab = 1.5,
      cex.axis = 1.5)
 abline(h = 0)
-title("c) Temporal calibration: mortality", line = 1.0, cex.main = 2)
+title("b) Temporal calibration", line = 1.0, cex.main = 2)
 
 # Plot daily mortality projections by age groups
 run_loop <- lapply(study_param$age_groups, function(i_age) {
   
   # Calibrated daily mortality projections
-  lines(proj_mortpopu_ldn_daily$date[ind_plot],
-        proj_mortpopu_ldn_daily[[paste0("mort.", i_age)]][ind_plot],
+  lines(proj_mort_ldn_daily$date[ind_plot],
+        proj_mort_ldn_daily[[paste0("mort.", i_age)]][ind_plot],
         col = col_plot[i_age])
   
 })
@@ -584,7 +570,7 @@ legend("topleft",
        cex = 1.4)
 
 
-# ---- PANELS D-E: ATTRIBUTABLE NUMBERS ----
+# ---- PANELS C-D: ATTRIBUTABLE NUMBERS ----
 
 # Define different ylim for the age groups
 ylim <- c("00_74" = 3000, "75plus" = 30000)
@@ -649,23 +635,10 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
 
 dev.off()
 
-rm(data_mort_year, col_plot, data_time, title_plot_an, 
-   layout_matrix, title_plot_cal, ylab_plot_cal, calperiod_plot, pos_text_cal, 
-   text_cf, ind_plot, ylim)
+rm(data_mort_year, col_plot, data_time, title_plot_an, layout_matrix, ind_plot, 
+   ylim)
 
 #### FIGURE 4. SUMMARY HEAT-RELATED MORTALITY ##################################
-
-# Calculate annual sums of demographic projections
-proj_mortpopu_yearly <- aggregate(
-  cbind(mort.00_74, mort.75plus) ~ year, 
-  data = proj_mortpopu_ldn_daily, 
-  FUN = "sum")
-
-# Calculate annual means of annuals projections
-proj_temp_bc_year <- 
-  aggregate(.~ lubridate::year(date), data = proj_temp_bc, FUN = mean)
-proj_temp_bc_year$date <- NULL
-colnames(proj_temp_bc_year)[1] <- "year"
 
 # Extract point_estimate and ci of 21-years periods
 values_period <- list(
@@ -826,8 +799,8 @@ mtext("Heat-related mortality projections (London, SSP2-4.5)",
 
 dev.off()
 
-rm(proj_mortpopu_yearly, proj_temp_bc_year, values_period, order_plot, 
-   values_plot, data_time, col_plot, title_plot, legend_plot)
+rm(values_period, order_plot, values_plot, data_time, col_plot, title_plot, 
+   legend_plot)
 
 #### FIGURE S1. UNCERTAINTY TEMPERATURE-MORTALTITY ASSOCIATION ###############
 

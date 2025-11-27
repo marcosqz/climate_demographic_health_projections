@@ -10,7 +10,7 @@
 load("indata/processed/study_parameters.RData")
 load(paste0(
   "outdata/file/03_calibrated_demographic_projections/",
-  "data_proj_mort_popu_spatialcal_tempcal_ssp", 
+  "data_proj_mort_spatialcal_tempcal_ssp", 
   study_param$ssp_scenario,
   ".RData"))
 load(file = paste0(
@@ -25,9 +25,9 @@ load("indata/processed/data_global_warming_levels_ssp245.RData")
 # Build a data frame with dates, corresponding years and decades (for time-based
 # grouping)
 data_time <- data.frame(
-  date = proj_mortpopu_ldn_daily$date,
-  year = lubridate::year(proj_mortpopu_ldn_daily$date),
-  decade = lubridate::year(proj_mortpopu_ldn_daily$date) %/% 10 * 10)
+  date = proj_mort_ldn_daily$date,
+  year = lubridate::year(proj_mort_ldn_daily$date),
+  decade = lubridate::year(proj_mort_ldn_daily$date) %/% 10 * 10)
 
 # ---- 1.SUMMARISE DECADAL TOTAL AND AGE-SPECIFIC HEALTH IMPACTS ----
 
