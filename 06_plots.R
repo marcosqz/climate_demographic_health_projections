@@ -476,13 +476,13 @@ text(
   col = "black",
   cex = 1.25)
 text(
-  round(corr_factor[["00_74"]], 2),
+  paste0("cf: x", round(corr_factor[["00_74"]], 2)),
   x = 1960,
   y = 0.40,
   col = col_plot["00_74"],
   cex = 1.25)
 text(
-  round(corr_factor[["75plus"]], 2),
+  paste0("cf: x", round(corr_factor[["75plus"]], 2)),
   x = 1960,
   y = 0.15,
   col = col_plot["75plus"],
