@@ -1,6 +1,7 @@
 ################################################################################
 
-# This scripts generates figures using outputs from previous scripts
+# This script generates the article's figures using epidemiological, climate,
+# demographic, and health outputs produced in previous scripts.
 
 #### LOAD LIBRARIES ############################################################
 
@@ -15,7 +16,6 @@ load("indata/processed/study_parameters.RData")
 
 # Load data observations
 load("indata/processed/data_obs_temp_mort.RData")
-load("indata/processed/data_obs_popu.RData")
 
 # Load data with global warming level periods
 load("indata/processed/data_global_warming_levels_ssp245.RData")
@@ -28,7 +28,7 @@ load("outdata/file/01_epi_model/coef_age.RData")
 load("outdata/file/01_epi_model/vcov_age.RData")
 load("outdata/file/01_epi_model/mmt_age.RData")
 
-# Load raw, calibrated and constant temperature projections
+# Load raw and calibrated temperature projections
 load("indata/processed/data_proj_temp_ssp245.RData")
 load(paste0("outdata/file/02_calibrated_climate_projections/",
             "data_proj_temp_biascorrection_ssp245.RData"))
@@ -108,9 +108,6 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
                   at = x_temp,
                   cen = mmt_age[[i_age]])
   
-  # Extract color for the corresponding age group
-  col_age <- col_plot[i_age]
-  
   # Plot curve
   plot(cp,
        col = rgb(1, 1, 1, 0), # line invisible
@@ -120,12 +117,13 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
        log = "y")
   title(title_plot[i_age], line = 0.65, font.main = 1, cex.main = 1)
   
-  # Plot sample of RR
+  # Identify temperature ranges (cold, heat, extrapolation)
   ind_cold <- x_temp <= mmt_age[[i_age]]
   ind_heat_obs <- (x_temp >=  mmt_age[[i_age]]) &
     (x_temp <=  x_temp["100.0%"])
   ind_heat_proj <- (x_temp >=  x_temp["100.0%"])
   
+  # Plot estimated RR
   lines(x_temp[ind_cold], 
         cp$allRRfit[ind_cold], 
         col = "grey5", 
@@ -133,11 +131,11 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
         lwd = 2)
   lines(x_temp[ind_heat_obs], 
         cp$allRRfit[ind_heat_obs], 
-        col = col_age, 
+        col = col_plot[i_age], 
         lwd = 2)
   lines(x_temp[ind_heat_proj], 
         cp$allRRfit[ind_heat_proj], 
-        col = col_age,
+        col = col_plot[i_age],
         lty = 2,
         lwd = 2)
   
@@ -161,7 +159,7 @@ rm(ymax, title_plot, col_plot, ncol.fig, nrow.fig, x_temp, run_loop)
 # Create a list with annual mean raw and bias-corrected temperatures
 proj_temp_year <- lapply(list(proj_temp, proj_temp_bc), function(data) {
   
-  # Aggregate projection temperature to years
+  # Compute annual mean temperature projections
   proj_temp_year <- 
     aggregate(.~ lubridate::year(date), data = data, FUN = mean)
   
@@ -184,8 +182,8 @@ data_temp_year <- aggregate(.~year, data = data_temp_year, FUN = mean)
 data_temp_year <- data_temp_year[data_temp_year$year != 2012,]
 
 # Define plotting parameters
-col_plot <- c("#88CCEE", "#AA4499", "#CC6677", "#332288", "#117733") 	
-names(col_plot) <- c("raw", "observations", study_param$selected_gcms)
+col_plot <- c("#88CCEE", "#AA4499", "#DDCC77", "#CC6677", "#332288", "#117733") 	
+names(col_plot) <- c("raw", "observations", "gwl", study_param$selected_gcms)
 
 # Build a data frame with dates, corresponding years and decades (for time-based
 # grouping)
@@ -201,9 +199,10 @@ title_plot_af <- c(
   "75plus" = 
     expression(bold("e) Attributable fraction - Old (">= 75*" years)")))
 
-# Subset GWL dataset to the study GWL
+# Subset GWL dataset to the selected level of warming for the study
 period_selected_gwl <- subset(
-  data_gwl, warming_level == study_param$selected_warming)
+  data_gwl, 
+  warming_level == study_param$selected_warming)
 
 # ---- PLOT CLIMATE MODELS AND ATTRIBUTABLE FRACTIONS ----
 pdf(file = "outdata/plot/fig2_climate_models.pdf", width = 12, height = 8)
@@ -263,7 +262,7 @@ run_loop <- lapply(seq_along(study_param$selected_gcms), function(i_loop) {
     col = "grey")
   text(
     paste0("Calibration \n period"),
-    x = 2001,
+    x = mean(c(1990, 2011)),
     y = 15.5,
     col = "black",
     cex = 1.25)
@@ -289,7 +288,7 @@ run_loop <- lapply(seq_along(study_param$selected_gcms), function(i_loop) {
   polygon(
     x = c(years[1], years[2], years[2], years[1]),
     y = c(-0.1, -0.1, 100, 100),
-    col = adjustcolor("#DDCC77", alpha.f = 0.2),
+    col = adjustcolor(col_plot[["gwl"]], alpha.f = 0.2),
     border = NA)
   
   # Draw horizontal lines defining the GWL period
@@ -300,7 +299,7 @@ run_loop <- lapply(seq_along(study_param$selected_gcms), function(i_loop) {
     lwd = 1.5,
     code = 3,
     length = 0.1,
-    col = "#DDCC77")
+    col = col_plot[["gwl"]])
   text(
     paste0("GWL 2°C"),
     x = mean(c(years[[1]], years[[2]])),
@@ -326,7 +325,7 @@ run_loop <- lapply(seq_along(study_param$selected_gcms), function(i_loop) {
 # Loop age groups
 run_loop <- lapply(study_param$age_groups, function(i_age) {
   
-  # Initalizate plot
+  # Initialize plot
   plot(
     x = unique(data_time$decade),
     y = rep(1, length(unique(data_time$decade))),
@@ -350,10 +349,10 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
   
   # Loop GCMs
   run_loop <- lapply(study_param$selected_gcms, function(i_gcm) {
-    # Loop simulated epidemiological curves
+    # Loop simulated curves
     run_loop <- lapply(1:study_param$n_sim, function(i) {
       
-      # Plot the AFs for the simulated coefficients from the epi models
+      # Plot the AFs for the sampled coefficients from the epi models
       lines(
         x = unique(data_time$decade),
         y = sapply(
@@ -376,8 +375,8 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
   # Add legend
   legend("topleft",
          c(study_param$selected_gcms,
-           "Epidemiological estimates",
-           "Epidemiological simulations"),
+           "Estimated coefficients",
+           "Sampled coefficients"),
          col = c(col_plot[study_param$selected_gcms], 1, 1),
          lwd = c(3, 3, 3, 3, 1.25),
          lty = c(1, 1, 1, 1, 2),
@@ -406,7 +405,7 @@ data_mort_year <- aggregate(formula_agg, data = data_mort_year, FUN = sum)
 # Remove row for 2012 (we don't have mortality data for the whole year)
 data_mort_year <- subset(data_mort_year, year != 2012)
 
-# Define colors for the age groups
+# Define colors for the plot
 col_plot <- c("#1B9E77", "#D95F02", "#CC6677", "#332288", "#117733") 	
 names(col_plot) <- c(study_param$age_groups, study_param$selected_gcms)
 
@@ -452,7 +451,7 @@ plot(x = 1,
      xaxt = "n")
 title("a) Spatial calibration", line = 1.0, cex.main = 2)
 
-# Draw a transparent polygon with a rectangle with the calibration period
+# Draw a transparent polygon for the calibration period
 polygon(
   x = c(min(data_mort_year$year), max(data_mort_year$year), 
         max(data_mort_year$year), min(data_mort_year$year)),
@@ -527,8 +526,6 @@ legend("right",
        col = c(col_plot[study_param$age_groups], "black", "darkgrey"),
        cex = 1.25)
   
-
-
 # ---- PANEL B: TEMPORAL CALIBRATION OF DEMOGRAPHIC PROJECTIONS ----
 
 # Select only projection period
@@ -569,7 +566,6 @@ legend("topleft",
        lwd = 1.5,
        cex = 1.4)
 
-
 # ---- PANELS C-D: ATTRIBUTABLE NUMBERS ----
 
 # Define different ylim for the age groups
@@ -600,7 +596,7 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
   
   # Loop GCMs
   run_loop <- lapply(study_param$selected_gcms, function(i_gcm) {
-    # Loop simulated epidemiological curves
+    # Loop sampled coefficients
     run_loop <- lapply(1:study_param$n_sim, function(i) {
       # Plot AN
       lines(
@@ -612,7 +608,7 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
         lty = 2,
         lwd = 0.25)
     })
-    # Plot AN for estimated epidemiological curves
+    # Plot AN for the estimated coefficients
     lines(
       x = unique(data_time$decade),
       y = sapply(split(an[[i_age]][[i_gcm]][,"est"], data_time$decade), 
@@ -624,8 +620,8 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
   # Add legend
   legend("topleft",
          c(study_param$selected_gcms, 
-           "Epidemiological estimates", 
-           "Epidemiological simulations"),
+           "Estimated coefficients", 
+           "Sampled coefficients"),
          col = c(col_plot[study_param$selected_gcms], 1, 1),
          lwd = c(3, 3, 3, 3, 1.25),
          lty = c(1, 1, 1, 1, 2),
@@ -640,7 +636,7 @@ rm(data_mort_year, col_plot, data_time, title_plot_an, layout_matrix, ind_plot,
 
 #### FIGURE 4. SUMMARY HEAT-RELATED MORTALITY ##################################
 
-# Extract point_estimate and ci of 21-years periods
+# Extract point_estimate and ci for the impacts by relevant temporal windows
 values_period <- list(
   gwl = sapply(an_gwl_summary_age, function(x) 
     {x[c("fit", "low", "high")]/21}),
@@ -667,18 +663,16 @@ data_time <- data.frame(
   decade = lubridate::year(proj_temp_bc$date) %/% 10 * 10)
 
 # Define plotting variables
+
 col_plot <- list(
   age = c("total" = "#000000", "00_74" = "#1B9E77", "75plus" = "#D95F02"),
   period = c("#C969A1", "#CE4441"))
-
 title_plot <- list(
   a = "a) Time trends in age-specific impacts", 
   b = "b) Aggregated 21-year period impacts")
-
 panel_lty <- c("total" = 1,
                "00_74" = 2,
                "75plus" = 2)
-
 legend_plot <- list(
   a = c(
     "Total (Old age)",
@@ -802,7 +796,7 @@ dev.off()
 rm(values_period, order_plot, values_plot, data_time, col_plot, title_plot, 
    legend_plot)
 
-#### FIGURE S1. UNCERTAINTY TEMPERATURE-MORTALTITY ASSOCIATION ###############
+#### FIGURE S1. UNCERTAINTY TEMPERATURE-MORTALTITY ASSOCIATIONS ################
 
 # Define the temperatures for the x-axis
 pred_perc <- c(seq(0, 1, 0.1), 2:98, seq(99, 100, 0.1))
@@ -850,9 +844,6 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
   coefsim <- subset(coef_age[[i_age]], select = -est)
   rrsim <- exp(bcen %*% coefsim)
   
-  # Extract color for the correspondin age group
-  col_age <- col_plot[i_age]
-  
   # Plot empty plot
   plot(x_temp, 
        rrsim[,1], 
@@ -863,12 +854,13 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
        log = "y")
   title(title_plot[i_age], line = 0.65, font.main = 1, cex.main = 1)
   
-  # Plot sample of RR
+  
   ind_cold <- x_temp <= mmt_age[[i_age]]
   ind_heat_obs <- (x_temp >=  mmt_age[[i_age]]) &
     (x_temp <=  x_temp["100.0%"])
   ind_heat_proj <- (x_temp >=  x_temp["100.0%"])
   
+  # Plot RR samples
   for(i in 1:study_param$n_sim){
     lines(x_temp[ind_cold], 
           rrsim[ind_cold, i], 
@@ -877,11 +869,11 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
           lwd = 0.5)
     lines(x_temp[ind_heat_obs], 
           rrsim[ind_heat_obs, i], 
-          col = col_age, 
+          col = col_plot[i_age], 
           lwd = 0.5)
     lines(x_temp[ind_heat_proj], 
           rrsim[ind_heat_proj, i], 
-          col = col_age,
+          col = col_plot[i_age],
           lty = 2,
           lwd = 0.5)
   }; rm(i)
@@ -919,6 +911,7 @@ raster_data <- lapply(study_param$selected_gcms, function(i_gcm) {
                       "_ssp245_", 2073, ".nc")
   raster_data <- brick(file_path)
   
+  # Subset raster to target dates
   raster_data <- raster_data[[paste0("X", format(target_dates, "%Y.%m.%d"))]]
   
   # Some NetCDF files have longitudes ranging from 0 to 360 instead of -180 to 180.
@@ -1001,29 +994,39 @@ par(mex = 0.8, mgp = c(3, 1, 0), las = 1, oma = c(0, 0, 0, 0))
 
 run_loop <- lapply(study_param$age_groups, function(i_age) {
   
-  # Calculate mean of daily deaths by day of the year
+  # Calculate mean daily mortality for each day of the year
   deathdoy <- tapply(
     data_tempmort[[paste0("mort.", i_age)]], 
     as.numeric(format(data_tempmort$date, "%j")), 
     mean, na.rm = TRUE)[seq(365)]
   
-  # Seasonality weights by day of the year
+  # Seasonality weights based on the distribution of daily mean mortality
   weights_seas <- deathdoy / sum(deathdoy)
   
+  # Build dataset with daily mortality, day-of-year, and calendar year
   ts_weight_mort <- data.frame(
     mort = data_tempmort[[paste0("mort.", i_age)]],
     doy = as.numeric(format(data_tempmort$date, "%j")),
     year = lubridate::year(data_tempmort$date))
-  # Remove 2012 for the plot because the year is not complete
+  
+  # Exclude 2012 because the yera is incomplete in the dataset
   ts_weight_mort <- subset(ts_weight_mort, year != 2012)
   
-  ts_weight_mort_sum <- aggregate(mort ~ year, data = ts_weight_mort, FUN = "sum")
-  colnames(ts_weight_mort_sum)[colnames(ts_weight_mort_sum) == "mort"] <- "sum_mort"
+  # Compute total annual mortality for weighting
+  ts_weight_mort_sum <- aggregate(
+    mort ~ year, 
+    data = ts_weight_mort, 
+    FUN = "sum")
+  colnames(ts_weight_mort_sum)[colnames(ts_weight_mort_sum) == "mort"] <- 
+    "sum_mort"
   
+  # Merge annual totals back into the daily dataset
   ts_weight_mort <- merge(ts_weight_mort, ts_weight_mort_sum, by = "year")
   
+  # Calculate each day's proportion of annual mortality
   ts_weight_mort$weight <- ts_weight_mort$mort / ts_weight_mort$sum_mort
   
+  # Plot daily mortality weights and mean seasonal cycle
   plot(ts_weight_mort$doy, 
        ts_weight_mort$weight*100, 
        pch = 16, 
@@ -1035,7 +1038,8 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
   lines(1:365, weights_seas*100, col = "blue", lwd = 2)
   
 })
-# Title common to both panels
+
+# Add common title for both panels
 mtext("Observed mortality (London, 1990-2012)", 
       side = 3, outer = TRUE, line = -2.2, cex = 1.3, font = 2)
 dev.off()

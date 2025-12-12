@@ -1,9 +1,5 @@
 ################################################################################
 
-# TODO: Investigate and ask about the source of the isimip3 function (change name of the file)
-# TODO: Masselot uses decade calibration periods. Is it correct to use directly
-#       1950:2099
-
 # This script aligns projected and observed daily temperatures by 
 # bias-correcting General Circulation Model (GCM) outputs using the ISIMIP3BASD 
 # method, with observed temperatures from the 1990–2011 period as the reference.
@@ -23,7 +19,7 @@ load("indata/processed/data_obs_temp_mort.RData")
 load("indata/processed/data_proj_temp_ssp245.RData")
 
 # Load ISIMIP3 bias-correction function
-source("isimip3_from_masselot.R")
+source("isimip3.R")
 
 # Load output from the epidemiological model
 load("outdata/file/01_epi_model/arglag.RData")
@@ -138,7 +134,7 @@ af <- lapply(study_param$age_groups, function(i_age) {
       center = cenvec, 
       scale = FALSE)
     
-    # Estimate relative risks using estimated and simulated coefficients
+    # Estimate relative risks using estimated and sampled coefficients
     rr <- exp(bcen %*% coef_age[[i_age]])
     
     # Calculate attributable fraction

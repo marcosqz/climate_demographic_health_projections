@@ -6,7 +6,7 @@
 #   (1) Observed temperature and mortality
 #   (2) Observed population data
 #   (3) National population and survival ratio projections
-#   (4) Climate model temperature projections (GCMs)
+#   (4) Temperature projections
 #   (5) Global Warming Level (GWL) periods
 
 #### LOAD LIBRARIES ############################################################
@@ -29,12 +29,22 @@ study_param <- list(
   selected_gcms = c("ACCESS-CM2", "BCC-CSM2-MR", "CESM2"), # GCM model
   selected_warming = "2") # Global warming level of 2°C / choose between (1.5, 2, 3, 4)
 
+# Select the data source (both options are provided for illustration):
+# - TRUE = load data from "/indata/raw/"
+# - FALSE = download data from original online sources
+source_local <- TRUE
+
 #### DATASET 1: OBSERVED TEMPERATURE AND MORTALITY ##############
 
 # Load daily temperature and mortality data for London (1990–2012)
-# (Raw source file also available locally at indata/raw/lndn_obs.csv)
-url_data <- "https://raw.githubusercontent.com/gasparrini/2019_vicedo-cabrera_Epidem_Rcodedata/refs/heads/master/lndn_obs.csv" 
-data_tempmort <- read.csv(url_data)
+
+if(source_local == TRUE) {
+  data_tempmort <- read.csv("indata/raw/lndn_obs.csv")
+} else if(source_local == FALSE) {
+  url_data <- "https://raw.githubusercontent.com/gasparrini/2019_vicedo-cabrera_Epidem_Rcodedata/refs/heads/master/lndn_obs.csv" 
+  data_tempmort <- read.csv(url_data)
+  rm(url_data)
+}
 data_tempmort$date <- as.Date(data_tempmort$date, format = "%d/%m/%Y")
 
 # Re-group age categories (<75 and ≥75 years)
@@ -46,15 +56,17 @@ data_tempmort <- subset(
   data_tempmort, 
   select = c("date", "year", "dow", "tmean", "mort.00_74", "mort.75plus"))
 
-rm(url_data)
-
 #### DATASET 2: OBSERVED POPULATION ############################################
 
 # Download and aggregate annual population estimates for London (region code 
 # "UKI") from Eurostat
-data_popu <- get_eurostat(
-  id = "demo_r_d2jan", 
-  filters = list(geo = "UKI", sex = "T"))
+if(source_local == TRUE) {
+  load("indata/raw/data_population_size.RData")
+} else {
+  data_popu <- get_eurostat(
+    id = "demo_r_d2jan", 
+    filters = list(geo = "UKI", sex = "T"))
+}
 data_popu <- subset(data_popu, select = c("age", "time", "values"))
 data_popu$year <- year(data_popu$time) # e.g "2005-01-01" to "2005"
 data_popu$time <- NULL
@@ -79,23 +91,31 @@ rm(data_popu_00_74, data_popu_75plus)
 # ratios) from the Wittgenstein Centre Human Capital Data Explorer (WCDE v2)
 
 # Population size (thousands), 1 value every 5 year: 1950, 1955, 1960, ...
-proj_popu <- get_wcde(
-  indicator = "pop", # Population Size (000's)
-  scenario = study_param$ssp_scenario,
-  pop_age =  "all",
-  pop_sex = "both",
-  version = "wcde-v3",
-  country_name = "United Kingdom of Great Britain and Northern Ireland")
+if(source_local == TRUE) {
+  load("indata/raw/proj_population_size.RData")
+} else {
+  proj_popu <- get_wcde(
+    indicator = "pop", # Population Size (000's)
+    scenario = study_param$ssp_scenario,
+    pop_age =  "all",
+    pop_sex = "both",
+    version = "wcde-v3",
+    country_name = "United Kingdom of Great Britain and Northern Ireland")
+}
 colnames(proj_popu)[colnames(proj_popu) == "pop"] <- "popu"
 
 # Age-Specific Survival Ratios (ASSR), 1 value per 5 year-period intervals: 
 # 1950-1955, 1955-1960, ...
-proj_mort <- get_wcde(
-  indicator = "assr", # Age-Specific Survival Ratio
-  scenario = study_param$ssp_scenario,
-  pop_age =  "all",
-  version = "wcde-v3",
-  country_name = "United Kingdom of Great Britain and Northern Ireland")
+if(source_local) {
+  load("indata/raw/proj_survival_ratio.RData")
+} else {
+  proj_mort <- get_wcde(
+    indicator = "assr", # Age-Specific Survival Ratio
+    scenario = study_param$ssp_scenario,
+    pop_age =  "all",
+    version = "wcde-v3",
+    country_name = "United Kingdom of Great Britain and Northern Ireland")
+}
 proj_mort <- subset(proj_mort, age != "Newborn") # Exclude "Newborn" age group
 
 # Convert 5-year intervals (e.g., “2000–2005”) to start year (e.g., 2000)
@@ -107,8 +127,8 @@ rm(proj_popu)
 proj_mort$popu <- proj_mort$popu * 1000
 proj_mort$mort <- proj_mort$popu * (1 - proj_mort$assr)
 
-# We only keep the mortality projections, but keep population projections too 
-# if AN rates are one of the health outcome of interest
+# Keep only the mortality projections for this analysis. Keep the population
+# projections if calculating AN rates is required.
 proj_mort <- subset(proj_mort, select = c("age", "sex", "year", "mort"))
 
 # Aggregate by age and year, combining both sexes
@@ -123,12 +143,14 @@ proj_mort$age_group <- ifelse(
 proj_mort$age <- NULL
 proj_mort <- aggregate(mort ~ age_group + year, data = proj_mort, FUN = sum)
 
-# Reshape long to wide and rescale annual deaths
+# Reshape long to wide
 proj_mort <- reshape(
   data = proj_mort, 
-  timevar = "age_group", 
+  timevar = "age_group",
   idvar = "year", 
   direction = "wide")
+
+# Scale 5-year mortality counts to annual values
 proj_mort[,paste0("mort.", study_param$age_groups)] <-
   proj_mort[,paste0("mort.", study_param$age_groups)]/5
 
@@ -140,19 +162,20 @@ rm(years_demodata)
 
 #### DATASET 4: TEMPERATURE PROJECTIONS ############
 
-# Download temperature projections for SSP2-RCP4.5
 # This section downloads gridded daily temperature projections from the 
-# NEX-GDDP-CMIP6 dataset hosted by NASA. The download fetches data for selected
-# GCMs and years (1950-2100), covering both historical and future periods.
+# NEX-GDDP-CMIP6 dataset hosted by NASA. The download gets data for selected
+# GCMs and years (1950-2100) for SSP2-RCP4.5, covering both historical and 
+# future periods.
 
 # IMPORTANT NOTES:
 # - The download may take a long time depending on your internet connection,
-#   NASA's server availability, and file size (~33.5 MB in this case). It may 
-#   take up to 2-3 hours.
+#   NASA's server availability, numbers of files and its size. For this setting, 
+#   it takes about 2 hours.
 # - This step only needs to be run once. Set "run_download <- FALSE" to skip
 #   it if the data have already been downloaded.
 # - If you're only running this code for tutorial or learning purposes, the
-#   original temperature projection data is downloaded in indata/raw/
+#   original temperature projection data is downloaded in "/indata/raw/" and you
+#   can set "run_download <- FALSE"
 
 # Direct download like this depend on evolving infrastructure. For obtaining 
 # URLs for new GCMs of scenarions, check NASA's NEX-GDDP-CMIP6:
@@ -161,8 +184,8 @@ rm(years_demodata)
 
 run_download <- FALSE
 
-# Loop through GCMs and years to download daily projections (optional)
-if(run_download) {
+# Download gridded daily temperature projections from NEX-GDDP-CMIP6
+if(run_download == TRUE) {
   
   # Bounding box for London
   lon <- c(-1, 1)
@@ -171,6 +194,7 @@ if(run_download) {
   # Create directories
   dir.create("indata/raw/temperature_projections/", recursive = TRUE)
   
+  # Loop gcms
   lapply(study_param$selected_gcms, function(i_gcm) {
     
     # Create directories
@@ -186,9 +210,10 @@ if(run_download) {
         recursive = TRUE)
     })
     
+    # Loop years
     lapply(1950:2100, function(i_year) {
       
-      # Select scenario: "historical" BEFORE 2015, "ssp245" (or defined) afterward
+      # Select scenario
       if(i_year < 2015) {
         i_scenario <- "historical"
       } else {
@@ -206,7 +231,7 @@ if(run_download) {
       url <- paste0(
         "https://ds.nccs.nasa.gov/thredds/ncss/grid/AMES/NEX/GDDP-CMIP6/", 
         i_gcm, "/", i_scenario , "/", diff_url, "/tas/tas_day_", i_gcm, "_", 
-        i_scenario , "_", diff_url, "_gn_", i_year, ".nc")
+        i_scenario , "_", diff_url, "_gn_", i_year, "_v2.0.nc")
       
       # Subset spatial domain (optional: omit for full global data)
       url_subset <- paste0(
@@ -273,7 +298,7 @@ proj_temp <- lapply(study_param$selected_gcms, function(i_gcm){
       raster_data <- raster::brick(file_path)
     }
     
-    # Some NetCDF files have longitudes ranging from 0 to 360 instead 
+    # These NetCDF files have longitudes ranging from 0 to 360 instead 
     # of -180 to 180.
     # This adjustment ensures compatibility with the London shapefile
     if (xmin(raster_data) > 180) {
@@ -307,7 +332,7 @@ proj_temp <- lapply(study_param$selected_gcms, function(i_gcm){
     output <- data.frame(
       date = dates,
       gcm = i_gcm,
-      temp = y - 273.15 # Convert Kelvin to Celsius,
+      temp = y - 273.15 # kelvin to celsius
     )
 
     return(output)
@@ -326,24 +351,31 @@ proj_temp <- do.call(rbind, proj_temp)
 rm(shp_london)
 
 # Reshape from long to wide
-proj_temp <- reshape(proj_temp, timevar = "gcm", idvar = "date", 
+proj_temp <- reshape(proj_temp, 
+                     timevar = "gcm", 
+                     idvar = "date", 
                      direction = "wide")
 proj_temp <- proj_temp[order(proj_temp$date),]
 
 #### DATASET 5: GLOBAL WARMING LEVELS ##########################################
-# Download information to work with global warming levels (1.5°, 2°, 3°, 4°)
-# under warming-levels from IPCC-WG1
+# Download from IPCC-WG1 the years in which each GCM exceeds different GWLs
+# (1.5°, 2°, 3°, 4°)
 
-# Load global warming levels (GWLs) (Raw source file also available locally at: 
-# indata/raw/CMIP6_Atlas_WarmingLevels.csv)
-url_data <- "https://raw.githubusercontent.com/IPCC-WG1/Atlas/main/warming-levels/CMIP6_Atlas_WarmingLevels.csv"
-data_gwl <- read.csv(url_data); rm(url_data)
+# Load global warming levels (GWLs)
+if(source_local == TRUE) {
+  data_gwl <- read.csv("indata/raw/CMIP6_Atlas_WarmingLevels.csv")
+} else {
+  url_data <- "https://raw.githubusercontent.com/IPCC-WG1/Atlas/main/warming-levels/CMIP6_Atlas_WarmingLevels.csv"
+  data_gwl <- read.csv(url_data); rm(url_data)
+}
 
-# Keep selected GCMs and the target SSP–RCP scenario
+# Keep selected GCMs
 data_gwl <- subset(
   data_gwl,
   grepl(paste0(paste(study_param$selected_gcms, collapse = "|"), "_"), 
         model_run)) # (e.g. identify ACCESS-CM in ACCESS-CM2_r1i1p1f1)
+
+# Keep selected SSP–RCP scenario
 data_gwl <- subset(
   data_gwl,
   select = grepl(study_param$ssp_rcp_scenario, names(data_gwl)) | # columns that include the name of the ssp/rcp scenario
@@ -383,7 +415,7 @@ save(data_popu, file = "indata/processed/data_obs_popu.RData")
 # Save temperature projections
 save(proj_temp, file = paste0(
   "indata/processed/data_proj_temp_",study_param$ssp_rcp_scenario, ".RData"))
-# Save mortality and population projections
+# Save mortality projections
 save(proj_mort, file = paste0(
   "indata/processed/data_proj_mort_ssp", study_param$ssp_scenario,".RData"))
 # Save Global Warming Level (GWL) periods

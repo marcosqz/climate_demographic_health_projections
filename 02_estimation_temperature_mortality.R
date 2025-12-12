@@ -18,7 +18,7 @@ load("indata/processed/study_parameters.RData")
 
 #### SET VARIABLES DEFINING THE DLNM MODEL #####################################
 
-# PARAMETERS DEFINING DLNMs
+# Set parameters defining the DLNMs
 dlnm_var <- list(
   var_prc = c(10, 75, 90),
   var_fun = "ns",
@@ -26,7 +26,7 @@ dlnm_var <- list(
   max_lag = 21,
   lagnk = 3)
 
-# DEFINE THE EXPOSURE- AND LAG-RESPONSE FUNCTIONS
+# Define the exposure- and lag-response functions
 argvar <- list(fun = dlnm_var$var_fun,
                knots = quantile(data_tempmort$tmean, 
                                 dlnm_var$var_prc/100, na.rm = TRUE),
@@ -34,45 +34,43 @@ argvar <- list(fun = dlnm_var$var_fun,
 arglag <- list(fun = dlnm_var$lag_fun, 
                knots = logknots(dlnm_var$max_lag, nk = dlnm_var$lagnk))
 
-# BUILD THE CROSS-BASIS
+# Build the crossbasis
 cb <- crossbasis(data_tempmort$tmean, lag = dlnm_var$max_lag, argvar, arglag)
 
-# INITIALIZE OBJECTS TO SAVE THE OUTPUTS
+# Initialize objects to save the outputs
 coef_age <- list()
 vcov_age <- list()
 mmt_age <- c()
 
-# LOOP AGE-SPECIFIC TEMPERATURE-MORTALITY MODELS
+# Loop age-specific temperature-mortality models
 for(i in 1:length(study_param$age_groups)) {
   
   # Set the age group label
   i_age <- study_param$age_groups[i]
   
-  # RUN MODEL
+  # Run model
   model <- glm(
     as.formula(paste0("mort.", i_age,
       "~ cb + factor(dow) + ns(date, df = round(8 * length(date) / 365.25))")),
     data = data_tempmort, family = quasipoisson)
   
-  # REDUCE COEFFICIENTS TO KEEP THE CUMULATIVE EXPOSURE-RESPONSE FUNCTION
+  # Reduce coefficients keeping the cumulative exposure-response function
   reduced <- crossreduce(cb, model, at = data_tempmort$tmean)
   
-  # FIND THE MINIMUM MORTALITY TEMPERATURE
+  # Find the minimum mortality temperature
   mmt_age[i_age] <- reduced$predvar[which.min(reduced$RRfit)]
   
-  # EXTRACT MODEL COEFFICIENTS AND VARIANCES
+  # Extract model coefficients and variances
   coef_age[[i_age]] <- coef(reduced)
   vcov_age[[i_age]] <- vcov(reduced)
   
-  # GENERATE MONTE CARLO SAMPLES TO GENERATE SIMUALATIONS OF THE
-  # RESPONSE FUNCTION
-  set.seed(13041975 + i) # Important! Same random seed for each group
-  coefsim_age <- 
-    t(mvrnorm(study_param$n_sim,
-              coef_age[[i_age]],
-              vcov_age[[i_age]]))
-  
-  # Save estimate and simulated coefficients together
+  # Generate monte carlo samples to generate simulation of the ERF
+  set.seed(13041975 + i) # Different random seed for each group
+  coefsim_age <- t(mvrnorm(study_param$n_sim,
+                           coef_age[[i_age]],
+                           vcov_age[[i_age]]))     
+
+  # Save estimated and sampled coefficients together
   coef_age[[i_age]] <- cbind(coef_age[[i_age]], coefsim_age)
   colnames(coef_age[[i_age]]) <- c("est", paste0("sim", 1:study_param$n_sim))
   

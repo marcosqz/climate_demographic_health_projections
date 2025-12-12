@@ -1,11 +1,10 @@
 ################################################################################
 
 # This script performs spatial and temporal calibration of national-level 
-# quinquennial SSP2 mortality and population projections to generate 
-# city-specific and daily calibrated series. It then computes the attributable 
-# number (AN) of heat-related deaths by combining the calibrated demographic 
-# projections with the climate-driven attributable fractions (AF) obtained in 
-# the previous step.
+# quinquennial SSP2 mortality projections to generate city-specific and daily 
+# calibrated series. It then computes the attributable number (AN) of 
+# heat-related deaths by combining the calibrated demographic projections with 
+# the climate-driven attributable fractions (AF) obtained in the previous steps.
 
 #### LOAD DATA #################################################################
 
@@ -122,8 +121,9 @@ for(i_age in study_param$age_groups) { # loop age-groups
     proj_mort_ldn_daily[[paste0("mort.", i_age)]] * 
     proj_mort_ldn_daily[[paste0("weights.", i_age)]]
   
-  # Remove the column with the weight
+  # Remove the column with the weights
   proj_mort_ldn_daily[[paste0("weights.", i_age)]] <- NULL
+  
 }; rm(i_age)
 
 #### ESTIMATION OF THE ATTRIBUTABLE NUMBER OF DEATHS ###########################
@@ -166,7 +166,6 @@ save(proj_mort_ldn_daily, file = paste0(
   study_param$ssp_scenario,
   ".RData"))
 save(an, file = paste0(
-  "outdata/file/03_calibrated_demographic_projections/",
-  "attributable_number_", 
+  "outdata/file/03_calibrated_demographic_projections/attributable_number_", 
   study_param$ssp_rcp_scenario, 
   ".RData"))

@@ -3,21 +3,25 @@
 # This script performs the final steps to summarise the future heat-related 
 # mortality in London over the 21st century, calculating the points estimates 
 # and 95% empirical confidence intervals that combine climate and 
-# epidemiological uncertainty.
+# epidemiological uncertainty for aggregations over time and space.
 
 #### LOAD DATA #################################################################
 
 load("indata/processed/study_parameters.RData")
+
+# Load mortality projections
 load(paste0(
   "outdata/file/03_calibrated_demographic_projections/",
   "data_proj_mort_spatialcal_tempcal_ssp", 
   study_param$ssp_scenario,
   ".RData"))
+# Load attributable numbers
 load(file = paste0(
   "outdata/file/03_calibrated_demographic_projections/",
   "attributable_number_", 
   study_param$ssp_rcp_scenario,
   ".RData"))
+# Load years for global warming levels
 load("indata/processed/data_global_warming_levels_ssp245.RData")
 
 #### COMPUTE DAILY TOTAL SUMMARY HEALTH IMPACTS ################################
@@ -31,7 +35,7 @@ data_time <- data.frame(
 
 # ---- 1.SUMMARISE DECADAL TOTAL AND AGE-SPECIFIC HEALTH IMPACTS ----
 
-# (1.1) Compute total AN by summing across age groups
+# AGGREGATE OVER DEMOGRAPHIC DIMENSIONS (sum across age groups)
 an[["total"]] <- lapply(study_param$selected_gcms, function(i_gcm) {
   
   # Sum ANs for both age groups for each GCM and epidemiological association
@@ -47,7 +51,7 @@ an[["total"]] <- lapply(study_param$selected_gcms, function(i_gcm) {
 # Loop over total and age groups
 an_decade_summary_age <- lapply(names(an), function(i_age) {
   
-  # (1.2) Aggregate daily ANs into decadal totals
+  # AGGREGATE OVER TIME (sum over decades)
   an_decade <- lapply(study_param$selected_gcms, function(i_gcm) { # Loop GCMs
     
     # Split daily data by decade
@@ -60,13 +64,13 @@ an_decade_summary_age <- lapply(names(an), function(i_age) {
     
   }); names(an_decade) <- study_param$selected_gcms
   
-  # (1.3) Derive point estimate and 95% confidence interval
+  # DERIVE POINT ESTIMATE AND 95% CONFIDENCE INTERVAL
   
   # Compute point estimate as the mean across GCMs of ANs using only the
   # estimated coefficients of the ERF
   an_decade_pe <- rowMeans(sapply(an_decade, function(x) x[,"est"]))
   
-  # Compute 95% CI from AN distribution across GCM and simulated coefficients
+  # Compute 95% CI from AN distribution across GCM and sampled coefficients
   # of the ERF
   an_decade_ci <- lapply(an_decade, function(x) {subset(x, select = -est)})
   an_decade_ci <- do.call(cbind, an_decade_ci)
@@ -91,7 +95,7 @@ an_decade_summary_age <- lapply(names(an), function(i_age) {
 # 2a. global warming level (GWL) of 2°C
 an_gwl_summary_age <- lapply(names(an), function(i_age) {
   
-  # For each GCM, sum AN over the years corresponding to the selected GWL period
+  # AGGREGATE OVER TIME (sum years for GCM-specific GWL periods)
   an_gwl <- t(sapply(study_param$selected_gcms, function(i_gcm) {
     
     # Extract start and end years defining the GWL period for each GCM
@@ -100,8 +104,8 @@ an_gwl_summary_age <- lapply(names(an), function(i_age) {
       (warming_level == study_param$selected_warming) & (gcm == i_gcm),
       select = c("year1", "year2")))
     
-    # Sum daily ANs across the selected GWL period for all epidemiological
-    # all estimated and simulated curves
+    # Sum daily ANs across the selected GWL period for all estimated and 
+    # simulated erfs
     an_period <- colSums(
       an[[i_age]][[i_gcm]][data_time$year %in% c(years_gwl[1]:years_gwl[2]),])
     
@@ -109,13 +113,13 @@ an_gwl_summary_age <- lapply(names(an), function(i_age) {
     
   }))
   
-  # Derive point estimate and 95% confidence interval
+  # DERIVE POINT ESTIMATE AND 95% CONFIDENCE INTERVAL
   
   # Compute point estimate as the mean across GCMs of ANs using only the
   # estimated coefficients of the ERF
   an_gwl_pe <- mean(an_gwl[,"est"])
   
-  # Compute 95% CI from AN distribution across GCM and simulated coefficients
+  # Compute 95% CI from AN distribution across GCM and sampled coefficients
   # of the ERF
   an_gwl_ci <- quantile(an_gwl[,colnames(an_gwl)!="est"], c(0.025, 0.975))
   
@@ -133,17 +137,19 @@ an_gwl_summary_age <- lapply(names(an), function(i_age) {
 # 2b. fixed future period (end-of-century, 2079-2099).
 an_endcentury_summary_age <- lapply(names(an), function(i_age) {
   
-  # Sum AN over the years corresponding to the end-of-century period
+  # AGGREGATE OVER TIME (sum years for end-of-century period)
   an_endcentury <- t(
     sapply(study_param$selected_gcms, function(i_gcm) {colSums(
       an[[i_age]][[i_gcm]][data_time$year %in% c(2079:2099),])
     }))
   
+  # DERIVE POINT ESTIMATE AND 95% CONFIDENCE INTERVAL
+  
   # Compute point estimate as the mean across GCMs of ANs using only the
   # estimated coefficients of the ERF
   an_endcentury_pe <- mean(an_endcentury[,"est"])
   
-  # Compute 95% CI from AN distribution across GCM and simulated coefficients
+  # Compute 95% CI from AN distribution across GCM and sampled coefficients
   # of the ERF
   an_endcentury_ci <- 
     quantile(an_endcentury[,colnames(an_endcentury)!="est"], c(0.025, 0.975))
