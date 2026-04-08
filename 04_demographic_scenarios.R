@@ -6,6 +6,8 @@
 # heat-related deaths by combining the calibrated demographic projections with 
 # the climate-driven attributable fractions (AF) obtained in the previous steps.
 
+rm(list = ls())
+
 #### LOAD DATA #################################################################
 
 load("indata/processed/data_obs_temp_mort.RData")

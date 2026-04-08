@@ -5,6 +5,8 @@
 # and 95% empirical confidence intervals that combine climate and 
 # epidemiological uncertainty for aggregations over time and space.
 
+rm(list = ls())
+
 #### LOAD DATA #################################################################
 
 load("indata/processed/study_parameters.RData")

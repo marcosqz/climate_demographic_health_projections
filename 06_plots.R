@@ -3,6 +3,8 @@
 # This script generates the article's figures using epidemiological, climate,
 # demographic, and health outputs produced in previous scripts.
 
+rm(list = ls())
+
 #### LOAD LIBRARIES ############################################################
 
 library(dlnm) # onebasis
@@ -347,7 +349,7 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
        cex.axis = 1.5)
   abline(h = 0)
   
-  # Loop GCMs
+  # Loop GCMs for plotting AFs from simulated coefficients of the ERF
   run_loop <- lapply(study_param$selected_gcms, function(i_gcm) {
     # Loop simulated curves
     run_loop <- lapply(1:study_param$n_sim, function(i) {
@@ -359,17 +361,30 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
           split(af[[i_age]][[i_gcm]][,paste0("sim", i)], data_time$decade), 
           mean) * 100,
         col = col_plot[i_gcm],
-        lty = 2,
-        lwd = 0.25)
+        lty = 3,
+        lwd = 1)
     })
+
+  })
+  
+  # Loop GCMs for plotting AFs from estimated coefficients of the ERF
+  run_loop <- lapply(study_param$selected_gcms, function(i_gcm) {
     
     # Plot the AFs for the estimated coefficients from the epi models
+    # We plot two times the same lines to add a black border
+    lines(
+      x = unique(data_time$decade),
+      y = sapply(split(af[[i_age]][[i_gcm]][,"est"], data_time$decade), 
+                 mean) * 100,
+      col = "black",
+      lwd = 6)
     lines(
       x = unique(data_time$decade),
       y = sapply(split(af[[i_age]][[i_gcm]][,"est"], data_time$decade), 
                  mean) * 100,
       col = col_plot[i_gcm],
       lwd = 4)
+    
   })
   
   # Add legend
@@ -378,8 +393,8 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
            "Estimated coefficients",
            "Sampled coefficients"),
          col = c(col_plot[study_param$selected_gcms], 1, 1),
-         lwd = c(3, 3, 3, 3, 1.25),
-         lty = c(1, 1, 1, 1, 2),
+         lwd = c(3, 3, 3, 3, 2),
+         lty = c(1, 1, 1, 1, 3),
          cex = 1.5)
   
 }); rm(run_loop)
@@ -594,7 +609,7 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
        cex.axis = 1.5)
   abline(h = 0)
   
-  # Loop GCMs
+  # Loop GCMs for plotting AFs from simulated coefficients of the ERF
   run_loop <- lapply(study_param$selected_gcms, function(i_gcm) {
     # Loop sampled coefficients
     run_loop <- lapply(1:study_param$n_sim, function(i) {
@@ -605,26 +620,39 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
           split(an[[i_age]][[i_gcm]][,paste0("sim", i)], data_time$decade), 
           sum) / 1e4, 
         col = col_plot[i_gcm],
-        lty = 2,
-        lwd = 0.25)
+        lty = 3,
+        lwd = 1)
     })
+  })
+  
+  # Loop GCMs for plotting AFs from estimated coefficients of the ERF
+  run_loop <- lapply(study_param$selected_gcms, function(i_gcm) {  
+    
     # Plot AN for the estimated coefficients
+    # We plot two times the same lines to add a black border
+    lines(
+      x = unique(data_time$decade),
+      y = sapply(split(an[[i_age]][[i_gcm]][,"est"], data_time$decade), 
+                 sum) / 1e4, 
+      col = "black", 
+      lwd = 6)
     lines(
       x = unique(data_time$decade),
       y = sapply(split(an[[i_age]][[i_gcm]][,"est"], data_time$decade), 
                  sum) / 1e4, 
       col = col_plot[i_gcm], 
-      lwd = 3)
+      lwd = 4)
+    
   })
-  
+
   # Add legend
   legend("topleft",
          c(study_param$selected_gcms, 
            "Estimated coefficients", 
            "Sampled coefficients"),
          col = c(col_plot[study_param$selected_gcms], 1, 1),
-         lwd = c(3, 3, 3, 3, 1.25),
-         lty = c(1, 1, 1, 1, 2),
+         lwd = c(3, 3, 3, 3, 2),
+         lty = c(1, 1, 1, 1, 3),
          cex = 1.25)
   
 })

@@ -5,6 +5,8 @@
 # 1990–2012 using stratified quasi-Poisson regression models combined with 
 # distrusted lag non-linear models (DLMNs). 
 
+rm(list = ls())
+
 #### LOAD LIBRARIES ############################################################
 
 library(dlnm) # logknots

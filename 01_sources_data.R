@@ -9,6 +9,8 @@
 #   (4) Temperature projections
 #   (5) Global Warming Level (GWL) periods
 
+rm(list = ls())
+
 #### LOAD LIBRARIES ############################################################
 
 library(lubridate) # dow
@@ -23,7 +25,7 @@ library(exactextractr) # exact_extract
 # Define parameters for the illustrative health impact projection study
 study_param <- list(
   age_groups = c("00_74", "75plus"), # <75 and ≥75 years
-  n_sim = 100, # Number of simulations for the epidemiological models
+  n_sim = 500, # Number of simulations for the epidemiological models
   ssp_scenario = 2, # Shared Socioeconomic Pathway 2
   ssp_rcp_scenario = "ssp245", # SSP2-4.5 / choose between c(ssp126, ssp245, ssp370, ssp585)
   selected_gcms = c("ACCESS-CM2", "BCC-CSM2-MR", "CESM2"), # GCM model
@@ -88,7 +90,7 @@ rm(data_popu_00_74, data_popu_75plus)
 #### DATASET 3: POPULATION AND MORTALITY PROJECTIONS FOR UK AND NI #############
 
 # Retrieve national-level demographic projections (population and survival 
-# ratios) from the Wittgenstein Centre Human Capital Data Explorer (WCDE v2)
+# ratios) from the Wittgenstein Centre Human Capital Data Explorer (WCDE v3)
 
 # Population size (thousands), 1 value every 5 year: 1950, 1955, 1960, ...
 if(source_local == TRUE) {
@@ -117,6 +119,23 @@ if(source_local) {
     country_name = "United Kingdom of Great Britain and Northern Ireland")
 }
 proj_mort <- subset(proj_mort, age != "Newborn") # Exclude "Newborn" age group
+
+# Create the group "100+" for ASSR:
+# Version "wcde-v3" includes age groups "100--104", "105--109", "110--114",
+# "115--119", "120+" for ASSR, and only "100+" for population
+proj_mort_old <- subset(
+  proj_mort, 
+  age %in% c("100--104", "105--109", "110--114","115--119", "120+"))
+# Cumulative survival ratio of "100+" as the product
+proj_mort_old <- aggregate(assr ~ scenario + name + country_code + sex + period, 
+          data = proj_mort_old, FUN = prod)
+proj_mort_old$age <- "100+"
+# Bind "100+" and remove older age groups
+proj_mort <- rbind(proj_mort, proj_mort_old)
+proj_mort <- subset(
+  proj_mort,
+  !(age %in% c("100--104", "105--109", "110--114","115--119", "120+")))
+rm(proj_mort_old)
 
 # Convert 5-year intervals (e.g., “2000–2005”) to start year (e.g., 2000)
 proj_mort$year <- as.numeric(substr(proj_mort$period, 1, 4))

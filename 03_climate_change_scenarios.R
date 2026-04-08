@@ -7,6 +7,8 @@
 # for each age group, GCM, and epidemiological curve by combining the 
 # exposure-response functions with the bias-corrected temperature projections.
 
+rm(list = ls())
+
 #### LOAD LIBRARIES ############################################################
 
 library(lubridate) # year, month
