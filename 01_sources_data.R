@@ -25,7 +25,7 @@ library(exactextractr) # exact_extract
 # Define parameters for the illustrative health impact projection study
 study_param <- list(
   age_groups = c("00_74", "75plus"), # <75 and ≥75 years
-  n_sim = 500, # Number of simulations for the epidemiological models
+  n_sim = 100, # Number of simulations for the epidemiological models
   ssp_scenario = 2, # Shared Socioeconomic Pathway 2
   ssp_rcp_scenario = "ssp245", # SSP2-4.5 / choose between c(ssp126, ssp245, ssp370, ssp585)
   selected_gcms = c("ACCESS-CM2", "BCC-CSM2-MR", "CESM2"), # GCM model
