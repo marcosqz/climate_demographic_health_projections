@@ -361,8 +361,8 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
           split(af[[i_age]][[i_gcm]][,paste0("sim", i)], data_time$decade), 
           mean) * 100,
         col = col_plot[i_gcm],
-        lty = 3,
-        lwd = 1)
+        lty = 2,
+        lwd = 0.25)
     })
 
   })
@@ -393,8 +393,8 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
            "Estimated coefficients",
            "Sampled coefficients"),
          col = c(col_plot[study_param$selected_gcms], 1, 1),
-         lwd = c(3, 3, 3, 3, 2),
-         lty = c(1, 1, 1, 1, 3),
+         lwd = c(3, 3, 3, 3, 1),
+         lty = c(1, 1, 1, 1, 2),
          cex = 1.5)
   
 }); rm(run_loop)
@@ -620,8 +620,8 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
           split(an[[i_age]][[i_gcm]][,paste0("sim", i)], data_time$decade), 
           sum) / 1e4, 
         col = col_plot[i_gcm],
-        lty = 3,
-        lwd = 1)
+        lty = 2,
+        lwd = 0.25)
     })
   })
   
@@ -651,8 +651,8 @@ run_loop <- lapply(study_param$age_groups, function(i_age) {
            "Estimated coefficients", 
            "Sampled coefficients"),
          col = c(col_plot[study_param$selected_gcms], 1, 1),
-         lwd = c(3, 3, 3, 3, 2),
-         lty = c(1, 1, 1, 1, 3),
+         lwd = c(3, 3, 3, 3, 1),
+         lty = c(1, 1, 1, 1, 2),
          cex = 1.25)
   
 })
