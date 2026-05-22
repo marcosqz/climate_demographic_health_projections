@@ -1,7 +1,7 @@
 # Projecting climate change impacts on health: A tutorial integrating the latest climate and demographic scenarios
 
 Fully reproducible code for the illustrative example presented in:  
-[*Quijal-Zamorano, Marcosa,b,*; Masselot, Pierrec; Gasparrini, Antonioc; Vicedo-Cabrera, Ana M.a,b. Projecting climate change impacts on health: A tutorial integrating the latest climate and demographic scenarios. Environmental Epidemiology 10(3):p e489, June 2026. | DOI: 10.1097/EE9.0000000000000489*](https://journals.lww.com/environepidem/fulltext/2026/06000/projecting_climate_change_impacts_on_health__a.10.aspx)
+[*Quijal-Zamorano, M., Masselot, P., Gasparrini, A., & Vicedo-Cabrera, A. M. (2026). Projecting climate change impacts on health: A tutorial integrating the latest climate and demographic scenarios. Environmental Epidemiology, 10(3). https://journals.lww.com/environepidem/fulltext/2026/06000/projecting_climate_change_impacts_on_health__a.10.aspx9*](https://journals.lww.com/environepidem/fulltext/2026/06000/projecting_climate_change_impacts_on_health__a.10.aspx)
 
 This repository illustrates the methodology presented in the paper through a projection study of heat-related mortality in London under a middle-of-the-road scenario (SSP2-4.5).
 
